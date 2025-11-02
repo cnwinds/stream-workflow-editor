@@ -10,11 +10,15 @@ export class YamlService {
    */
   static stringify(config: WorkflowConfig): string {
     try {
+      // 使用 left/top 替代 x/y 避免 YAML 歧义问题
+      // YAML 1.1 规范中，'y' 是布尔值 true 的别名，js-yaml 会对其添加引号
+      // 使用 left/top 更语义化且无歧义
       return yaml.dump(config, {
         indent: 2,
         lineWidth: -1,
-        quotingType: '"',
+        forceQuotes: false,
         sortKeys: false,
+        noRefs: true,
       })
     } catch (error) {
       throw new Error(`YAML 序列化失败: ${error}`)

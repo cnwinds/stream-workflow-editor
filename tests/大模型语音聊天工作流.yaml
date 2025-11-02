@@ -1,0 +1,61 @@
+workflow:
+  name: 大模型语音聊天工作流
+  description: 完整的语音对话流程：VAD -> ASR -> LLM -> TTS
+  config:
+    stream_timeout: 300
+    continue_on_error: false
+  nodes:
+    - id: vad
+      type: vad_node
+      position:
+        left: 200
+        top: 100
+      name: 语音活动检测
+      config:
+        threshold: 0.5
+        min_speech_duration: 0.3
+    - id: asr
+      type: asr_node
+      position:
+        left: 500
+        top: 100
+      name: 语音识别
+      config:
+        model: whisper
+        language: zh
+        stream_mode: true
+    - id: agent
+      type: agent_node
+      position:
+        left: 800
+        top: 100
+      name: 智能对话代理
+      config:
+        model: gpt-4
+        temperature: 0.7
+        stream: true
+        system_prompt: 你是一个专业的AI语音助手，请用简洁明了、自然流畅的方式回答问题，回答要简短易懂。
+    - id: tts
+      type: tts_node
+      position:
+        left: 1156.9000000000003
+        top: 99.09999999999997
+      name: 文本转语音
+      config:
+        voice: zh-CN-XiaoxiaoNeural
+        speed: 1
+        pitch: 1
+        audio_format: opus
+  connections:
+    - id: edge-0-vad-asr
+      from: vad.audio_stream
+      to: asr.audio_in
+    - id: edge-1-asr-agent
+      from: asr.text_stream
+      to: agent.text_input
+    - id: edge-2-agent-tts
+      from: agent.response_text
+      to: tts.text_input
+    - id: edge-3-tts-agent
+      from: tts.broadcast_status
+      to: agent.broadcast_status

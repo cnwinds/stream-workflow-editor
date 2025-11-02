@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { Handle, Position, NodeProps } from 'reactflow'
 import { NodeType, ParameterSchema } from '@/types/node'
 import { nodeApi } from '@/services/api'
+import { useWorkflowStore } from '@/stores/workflowStore'
 import './CustomNode.css'
 
 interface CustomNodeData {
@@ -13,32 +14,54 @@ interface CustomNodeData {
   outputParams?: Record<string, ParameterSchema>
 }
 
-const CustomNode: React.FC<NodeProps<CustomNodeData>> = ({ data, selected }) => {
+const CustomNode: React.FC<NodeProps<CustomNodeData>> = ({ data, selected, id }) => {
   const [inputParams, setInputParams] = useState<Record<string, ParameterSchema>>(data.inputParams || {})
   const [outputParams, setOutputParams] = useState<Record<string, ParameterSchema>>(data.outputParams || {})
+  const { updateNodeData } = useWorkflowStore()
   
   const nodeType = data.nodeType
   const executionMode = nodeType?.executionMode || 'sequential'
   
+  // 同步外部更新的 data.inputParams 和 data.outputParams 到组件状态
+  useEffect(() => {
+    if (data.inputParams) {
+      setInputParams(data.inputParams)
+    }
+    if (data.outputParams) {
+      setOutputParams(data.outputParams)
+    }
+  }, [data.inputParams, data.outputParams])
+  
   // 加载节点 schema
   useEffect(() => {
     const loadNodeSchema = async () => {
-      if (data.type && !data.inputParams && !data.outputParams) {
+      // 如果已经有 inputParams 和 outputParams，不需要重新加载
+      if (data.inputParams && Object.keys(data.inputParams).length > 0 && 
+          data.outputParams && Object.keys(data.outputParams).length > 0) {
+        return
+      }
+      
+      if (data.type) {
         try {
           const schema = await nodeApi.getNodeSchema(data.type)
-          if (schema.INPUT_PARAMS) {
-            setInputParams(schema.INPUT_PARAMS)
-          }
-          if (schema.OUTPUT_PARAMS) {
-            setOutputParams(schema.OUTPUT_PARAMS)
-          }
+          const loadedInputParams = schema.INPUT_PARAMS || {}
+          const loadedOutputParams = schema.OUTPUT_PARAMS || {}
+          
+          setInputParams(loadedInputParams)
+          setOutputParams(loadedOutputParams)
+          
+          // 同步更新 store 中的节点数据，以便验证逻辑可以访问
+          updateNodeData(id, {
+            inputParams: loadedInputParams,
+            outputParams: loadedOutputParams,
+          })
         } catch (error) {
           console.error(`加载节点 ${data.type} 的 schema 失败:`, error)
         }
       }
     }
     loadNodeSchema()
-  }, [data.type, data.inputParams, data.outputParams])
+  }, [data.type, data.inputParams, data.outputParams, id, updateNodeData])
 
   // 使用传入的 schema 或加载的 schema
   const finalInputParams = data.inputParams || inputParams

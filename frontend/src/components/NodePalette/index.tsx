@@ -6,8 +6,6 @@ import { NodeType, CategoryTreeNode } from '@/types/node'
 import { useWorkflowStore } from '@/stores/workflowStore'
 import './NodePalette.css'
 
-const { Panel } = Collapse
-
 const NodePalette: React.FC = () => {
   const [nodeTypes, setNodeTypes] = useState<NodeType[]>([])
   const [searchTerm, setSearchTerm] = useState('')
@@ -36,7 +34,6 @@ const NodePalette: React.FC = () => {
       try {
         const types = await nodeApi.getNodeTypes()
         setNodeTypes(types)
-        console.log('成功加载节点类型:', types)
       } catch (error) {
         console.error('从后端加载节点类型失败，使用默认类型:', error)
         // 如果后端连接失败，使用默认节点类型
@@ -140,33 +137,36 @@ const NodePalette: React.FC = () => {
     return tree
   }, [filteredNodes])
 
-  // 递归渲染树节点
-  const renderCategoryTree = (tree: Record<string, CategoryTreeNode>, level = 0): React.ReactNode => {
+  // 递归构建树节点 items
+  const buildCategoryTreeItems = (tree: Record<string, CategoryTreeNode>, level = 0): any[] => {
     const entries = Object.values(tree)
 
     if (entries.length === 0) {
-      return null
+      return []
     }
 
-    return entries.map((node) => {
-      const hasChildren = node.children && Object.keys(node.children).length > 0
-      const hasNodes = node.nodes && node.nodes.length > 0
+    return entries
+      .filter((node) => {
+        const hasChildren = node.children && Object.keys(node.children).length > 0
+        const hasNodes = node.nodes && node.nodes.length > 0
+        return hasChildren || hasNodes
+      })
+      .map((node) => {
+        const hasChildren = node.children && Object.keys(node.children).length > 0
+        const hasNodes = node.nodes && node.nodes.length > 0
 
-      if (!hasChildren && !hasNodes) {
-        return null
-      }
+        const title = (
+          <span style={{ fontWeight: level === 0 ? 'bold' : 'normal' }}>
+            {node.title}
+            {hasNodes && ` (${node.nodes!.length})`}
+          </span>
+        )
 
-      const title = (
-        <span style={{ fontWeight: level === 0 ? 'bold' : 'normal' }}>
-          {node.title}
-          {hasNodes && ` (${node.nodes!.length})`}
-        </span>
-      )
-
-      return (
-        <Panel header={title} key={node.key}>
-          {hasNodes && (
-            <div className="node-category-items">
+        const childrenContent: React.ReactNode[] = []
+        
+        if (hasNodes) {
+          childrenContent.push(
+            <div key="nodes" className="node-category-items">
               {node.nodes!.map((nodeType) => (
                 <Card
                   key={nodeType.id}
@@ -191,15 +191,25 @@ const NodePalette: React.FC = () => {
                 </Card>
               ))}
             </div>
-          )}
-          {hasChildren && (
-            <Collapse ghost>
-              {renderCategoryTree(node.children!, level + 1)}
-            </Collapse>
-          )}
-        </Panel>
-      )
-    })
+          )
+        }
+        
+        if (hasChildren) {
+          const nestedItems = buildCategoryTreeItems(node.children!, level + 1)
+          if (nestedItems.length > 0) {
+            // 嵌套的 Collapse 也使用 items API
+            childrenContent.push(
+              <Collapse key="children" ghost items={nestedItems} />
+            )
+          }
+        }
+
+        return {
+          key: node.key,
+          label: title,
+          children: childrenContent.length > 0 ? <>{childrenContent}</> : undefined,
+        }
+      })
   }
 
   const handleNodeDragStart = (event: React.DragEvent, nodeType: NodeType) => {
@@ -224,9 +234,10 @@ const NodePalette: React.FC = () => {
         ) : Object.keys(categoryTree).length === 0 ? (
           <Empty description="未找到节点" />
         ) : (
-          <Collapse defaultActiveKey={Object.keys(categoryTree)}>
-            {renderCategoryTree(categoryTree)}
-          </Collapse>
+          <Collapse 
+            defaultActiveKey={Object.keys(categoryTree)}
+            items={buildCategoryTreeItems(categoryTree)}
+          />
         )}
       </div>
     </div>

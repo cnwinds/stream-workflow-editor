@@ -59,3 +59,17 @@
   stroke-width: 2.5;
 }
 
+/* 无效连接（参数不匹配）的样式 */
+.react-flow__edge.invalid .react-flow__edge-path {
+  stroke: #ff4d4f !important;
+  stroke-width: 3;
+  stroke-dasharray: 5, 5; /* 虚线表示错误 */
+  animation: dash 0.5s linear infinite;
+}
+
+@keyframes dash {
+  to {
+    stroke-dashoffset: -10;
+  }
+}
+

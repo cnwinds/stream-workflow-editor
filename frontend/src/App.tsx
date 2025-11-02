@@ -12,18 +12,18 @@ function App() {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
 
   return (
-    <Layout style={{ height: '100vh' }}>
-      <Header style={{ padding: 0, background: '#fff', borderBottom: '1px solid #e8e8e8' }}>
+    <Layout style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
+      <Header style={{ padding: 0, background: '#fff', borderBottom: '1px solid #e8e8e8', flexShrink: 0 }}>
         <Toolbar />
       </Header>
-      <Layout>
-        <Sider width={250} style={{ background: '#fff', borderRight: '1px solid #e8e8e8' }}>
+      <Layout style={{ flex: 1, overflow: 'hidden' }}>
+        <Sider width={250} style={{ background: '#fff', borderRight: '1px solid #e8e8e8', overflow: 'auto' }}>
           <NodePalette />
         </Sider>
         <Content style={{ position: 'relative', overflow: 'hidden' }}>
           <WorkflowCanvas onNodeSelect={setSelectedNodeId} selectedNodeId={selectedNodeId} />
         </Content>
-        <Sider width={350} style={{ background: '#fff', borderLeft: '1px solid #e8e8e8' }}>
+        <Sider width={350} style={{ background: '#fff', borderLeft: '1px solid #e8e8e8', overflow: 'auto' }}>
           <NodeConfigPanel nodeId={selectedNodeId} />
         </Sider>
       </Layout>

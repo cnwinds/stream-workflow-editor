@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import uvicorn
 
-from api.routes import workflow, validate, execute, nodes
+from api.routes import workflow, validate, execute, nodes, files
 
 app = FastAPI(
     title="Stream Workflow API",
@@ -29,6 +29,7 @@ app.include_router(workflow.router, prefix="/api/workflows", tags=["工作流管
 app.include_router(validate.router, prefix="/api", tags=["配置验证"])
 app.include_router(execute.router, prefix="/api/execute", tags=["执行控制"])
 app.include_router(nodes.router, prefix="/api/nodes", tags=["节点信息"])
+app.include_router(files.router, prefix="/api/files", tags=["文件管理"])
 
 
 @app.get("/")

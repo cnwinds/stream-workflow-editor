@@ -7,7 +7,9 @@ export type NodeExecutionMode = 'sequential' | 'streaming' | 'hybrid'
 export interface WorkflowNode {
   id: string
   type: string
-  position?: { x: number; y: number }
+  // 导出时使用 left/top 避免 YAML 歧义（y 是布尔值 true 的别名）
+  // 但为了向后兼容，也支持 x/y 格式
+  position?: { x?: number; y?: number; left?: number; top?: number }
   name?: string
   data?: Record<string, any>
   config?: Record<string, any>

@@ -293,6 +293,71 @@ def update_custom_node(
     return node_entry
 
 
+def update_custom_node_full(
+    node_id: str,
+    name: str,
+    description: str,
+    category: str,
+    execution_mode: str,
+    color: str,
+    inputs: Dict[str, Dict[str, Any]],
+    outputs: Dict[str, Dict[str, Any]],
+    config_schema: Dict[str, Any],
+    python_code: str
+) -> Dict[str, Any]:
+    """更新自定义节点的完整信息（元数据+代码）"""
+    ensure_custom_nodes_dir()
+    
+    # 加载注册表
+    registry = load_registry()
+    
+    # 查找节点
+    node_entry = None
+    for node in registry.get("custom_nodes", []):
+        if node.get("id") == node_id:
+            node_entry = node
+            break
+    
+    if not node_entry:
+        raise ValueError(f"节点不存在: {node_id}")
+    
+    python_file = node_entry.get("pythonFile")
+    python_path = CUSTOM_NODES_DIR / python_file
+    
+    # 保存Python代码
+    print(f"[update_custom_node_full] 正在保存Python代码到: {python_path}")
+    print(f"[update_custom_node_full] 代码长度: {len(python_code)} 字符")
+    print(f"[update_custom_node_full] 代码前100字符: {python_code[:100]}")
+    
+    with open(python_path, 'w', encoding='utf-8') as f:
+        f.write(python_code)
+    
+    # 验证文件是否已写入
+    if python_path.exists():
+        with open(python_path, 'r', encoding='utf-8') as f:
+            saved_content = f.read()
+            print(f"[update_custom_node_full] 验证：文件已写入，内容长度: {len(saved_content)} 字符")
+            if saved_content != python_code:
+                print(f"[update_custom_node_full] 警告：保存的内容与原始内容不匹配！")
+    
+    # 更新注册表
+    node_entry["updatedAt"] = datetime.utcnow().isoformat() + "Z"
+    save_registry(registry)
+    
+    # 重新加载自定义节点模块
+    try:
+        import sys
+        custom_nodes_module = sys.modules.get("custom_nodes")
+        if custom_nodes_module:
+            reload_func = getattr(custom_nodes_module, "reload_custom_nodes", None)
+            if reload_func:
+                reload_func()
+    except Exception as e:
+        print(f"重新加载自定义节点失败: {e}")
+    
+    return node_entry
+
+
 def delete_custom_node(node_id: str) -> bool:
     """删除自定义节点"""
     ensure_custom_nodes_dir()

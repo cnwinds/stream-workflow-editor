@@ -4,7 +4,7 @@
 from workflow_engine.core import Node, ParameterSchema, register_node
 
 @register_node('TestNode1')
-class Testnode1Node(Node):
+class TestNode1Node(Node):
     """"""
     
     # 节点元信息
@@ -15,27 +15,26 @@ class Testnode1Node(Node):
     
     # 输入参数定义
     INPUT_PARAMS = {
-
         "text_stream": ParameterSchema(
             is_streaming=True,
-            schema={"field_1": "string", "field_2": "string", "field_3": "string"}
+            schema={"field_1":"string","field_2":"string","field_3":"string"}
         ),
-
         "status": ParameterSchema(
             is_streaming=True,
-            schema={"field_1": "string"}
+            schema={"field_1":"string"}
         ),
-
         "helloworld": ParameterSchema(
             is_streaming=True,
             schema={}
         )
-
     }
     
     # 输出参数定义
     OUTPUT_PARAMS = {
-
+        "o1": ParameterSchema(
+            is_streaming=True,
+            schema={}
+        )
     }
     
     # 配置Schema
@@ -44,13 +43,9 @@ class Testnode1Node(Node):
     async def run(self, context):
         """节点执行逻辑"""
         # 获取输入参数
-
         text_stream = context.get_input("text_stream")
-
         status = context.get_input("status")
-
         helloworld = context.get_input("helloworld")
-
         
         # 获取配置参数
         config = self.config or {}
@@ -62,5 +57,5 @@ class Testnode1Node(Node):
         
         # 返回输出
         return {
-
+            "o1": None,  # 替换为实际值
         }

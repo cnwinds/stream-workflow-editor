@@ -47,10 +47,34 @@ export class WorkflowConverter {
   } {
     // 解析节点
     const nodes: Node[] = config.workflow.nodes.map((node, index) => {
-      // 如果没有 position，自动生成布局（水平排列）
-      const position = node.position || {
-        x: 200 + (index % 3) * 300,
-        y: 100 + Math.floor(index / 3) * 200,
+      // 转换 position 格式：支持 {left, top} 和 {x, y} 两种格式（向后兼容）
+      let position: { x: number; y: number }
+      if (node.position) {
+        if ('left' in node.position && 'top' in node.position) {
+          // 新格式：{left, top}
+          position = {
+            x: node.position.left!,
+            y: node.position.top!,
+          }
+        } else if ('x' in node.position && 'y' in node.position) {
+          // 旧格式：{x, y}（向后兼容）
+          position = {
+            x: node.position.x!,
+            y: node.position.y!,
+          }
+        } else {
+          // 默认值
+          position = {
+            x: 200 + (index % 3) * 300,
+            y: 100 + Math.floor(index / 3) * 200,
+          }
+        }
+      } else {
+        // 如果没有 position，自动生成布局（水平排列）
+        position = {
+          x: 200 + (index % 3) * 300,
+          y: 100 + Math.floor(index / 3) * 200,
+        }
       }
 
       return {

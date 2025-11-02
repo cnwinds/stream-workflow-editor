@@ -1,0 +1,49 @@
+.file-manager-modal .ant-modal-body {
+  padding: 16px;
+}
+
+.file-manager {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.file-manager-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.file-manager-create {
+  padding: 12px;
+  background: #f5f5f5;
+  border-radius: 4px;
+}
+
+.file-manager-list {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.file-manager-item {
+  padding: 8px 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.file-manager-item:hover {
+  background-color: #fafafa;
+}
+
+.file-name {
+  font-weight: 500;
+  color: #1890ff;
+}
+
+.file-name:hover {
+  text-decoration: underline;
+}
+
+.file-manager-item .ant-list-item-action {
+  margin-left: 16px;
+}
+

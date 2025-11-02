@@ -10,24 +10,21 @@ import {
   Tabs,
   Table,
   Switch,
-  Card,
   Collapse,
 } from 'antd'
 import {
   PlusOutlined,
   DeleteOutlined,
-  EditOutlined,
 } from '@ant-design/icons'
 import Editor from '@monaco-editor/react'
 import { ParameterSchema, CreateNodeRequest } from '@/types/node'
 import { nodeApi } from '@/services/api'
 import { nodeGenerator } from '@/services/nodeGenerator'
+import { useWorkflowStore } from '@/stores/workflowStore'
 import './NodeCreator.css'
 
 const { TextArea } = Input
 const { Option } = Select
-const { TabPane } = Tabs
-const { Panel } = Collapse
 
 interface InputOutputItem {
   key: string
@@ -41,6 +38,8 @@ interface NodeCreatorModalProps {
   onCancel: () => void
   onSuccess: () => void
   editingNodeId?: string
+  readOnly?: boolean // 只读模式，用于查看内置节点
+  viewingNodeId?: string // 查看的节点ID（内置节点）
 }
 
 const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
@@ -48,6 +47,8 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
   onCancel,
   onSuccess,
   editingNodeId,
+  readOnly = false,
+  viewingNodeId,
 }) => {
   const [form] = Form.useForm()
   const [loading, setLoading] = useState(false)
@@ -55,22 +56,44 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
   const [inputs, setInputs] = useState<InputOutputItem[]>([])
   const [outputs, setOutputs] = useState<InputOutputItem[]>([])
   const [pythonCode, setPythonCode] = useState('')
+  const [originalPythonCode, setOriginalPythonCode] = useState('') // 保存加载时的原始代码
   const [showCodeEditor, setShowCodeEditor] = useState(false)
+  const [codeManuallyModified, setCodeManuallyModified] = useState(false) // 标记代码是否被手动修改
+  const { updateNodeTypeInstances } = useWorkflowStore()
 
-  // 加载编辑节点的数据
+  // 加载编辑节点的数据或查看内置节点数据
   useEffect(() => {
-    if (visible && editingNodeId) {
-      loadNodeData(editingNodeId)
-    } else if (visible) {
-      // 重置表单
-      form.resetFields()
-      setInputs([])
-      setOutputs([])
-      setPythonCode('')
-      setShowCodeEditor(false)
-      setActiveTab('basic')
+    if (!visible) {
+      return
     }
-  }, [visible, editingNodeId])
+    
+    // 使用 requestAnimationFrame 确保 Form 组件已经挂载
+    const rafId = requestAnimationFrame(() => {
+      if (editingNodeId) {
+        loadNodeData(editingNodeId)
+      } else if (viewingNodeId && readOnly) {
+        loadBuiltinNodeData(viewingNodeId)
+      } else {
+        // 重置表单 - 延迟执行确保 Form 已挂载
+        requestAnimationFrame(() => {
+          try {
+            form.resetFields()
+          } catch (e) {
+            // Form 可能还未挂载，忽略错误
+          }
+        })
+        setInputs([])
+        setOutputs([])
+        setPythonCode('')
+        setOriginalPythonCode('')
+        setCodeManuallyModified(false)
+        setShowCodeEditor(false)
+        setActiveTab('basic')
+      }
+    })
+    
+    return () => cancelAnimationFrame(rafId)
+  }, [visible, editingNodeId, viewingNodeId, readOnly, form])
 
   const loadNodeData = async (nodeId: string) => {
     try {
@@ -110,9 +133,67 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
       setInputs(inputItems)
       setOutputs(outputItems)
       setPythonCode(codeData.code)
+      setOriginalPythonCode(codeData.code) // 保存原始代码
+      setCodeManuallyModified(false) // 重置修改标记
       setShowCodeEditor(true)
     } catch (error) {
       message.error('加载节点数据失败')
+      console.error(error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // 加载内置节点数据（只读模式）
+  const loadBuiltinNodeData = async (nodeId: string) => {
+    try {
+      setLoading(true)
+      // 获取节点类型信息
+      const nodeTypes = await nodeApi.getNodeTypes()
+      const nodeType = nodeTypes.find((t: any) => t.id === nodeId)
+      
+      // 获取节点schema
+      const schema = await nodeApi.getNodeSchema(nodeId)
+
+      if (nodeType) {
+        form.setFieldsValue({
+          nodeId: nodeType.id,
+          name: nodeType.name,
+          description: nodeType.description || '',
+          category: nodeType.category,
+          executionMode: nodeType.executionMode,
+          color: nodeType.color || '#1890ff',
+          configSchema: JSON.stringify(nodeType.configSchema || {}, null, 2),
+        })
+      }
+
+      // 转换字典格式为数组格式用于UI显示
+      const inputItems: InputOutputItem[] = schema.INPUT_PARAMS
+        ? Object.entries(schema.INPUT_PARAMS).map(([name, param]: [string, any]) => ({
+            key: name,
+            name,
+            isStreaming: param.isStreaming || false,
+            schema: param.schema || {},
+          }))
+        : []
+      
+      const outputItems: InputOutputItem[] = schema.OUTPUT_PARAMS
+        ? Object.entries(schema.OUTPUT_PARAMS).map(([name, param]: [string, any]) => ({
+            key: name,
+            name,
+            isStreaming: param.isStreaming || false,
+            schema: param.schema || {},
+          }))
+        : []
+
+      setInputs(inputItems)
+      setOutputs(outputItems)
+      setPythonCode('') // 内置节点不显示代码
+      setOriginalPythonCode('')
+      setCodeManuallyModified(false)
+      setShowCodeEditor(false) // 内置节点不显示代码编辑器
+    } catch (error) {
+      message.error('加载节点信息失败')
       console.error(error)
     } finally {
       setLoading(false)
@@ -322,6 +403,15 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
         configSchema,
       })
       setPythonCode(code)
+      // 如果是编辑模式，检查代码是否被手动修改
+      if (editingNodeId) {
+        // 如果当前代码等于原始代码，说明没有被手动修改，重置标记
+        if (code === originalPythonCode) {
+          setCodeManuallyModified(false)
+        }
+        // 更新原始代码为最新生成的代码
+        setOriginalPythonCode(code)
+      }
       setShowCodeEditor(true)
       message.success('代码生成成功')
     } catch (error) {
@@ -362,6 +452,53 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
       const inputsDict = convertToDict(inputs)
       const outputsDict = convertToDict(outputs)
 
+      // 在编辑模式下，智能判断使用哪个代码
+      let finalPythonCode: string | undefined = undefined
+      
+      if (editingNodeId) {
+        if (showCodeEditor && pythonCode) {
+          // 如果代码被手动修改过，使用用户修改的代码
+          if (codeManuallyModified) {
+            finalPythonCode = pythonCode
+            console.log('使用手动修改的代码')
+          } else {
+            // 如果代码没有被手动修改，根据新参数生成代码
+            // 这样参数的变化会反映到代码中
+            const generatedCode = nodeGenerator.generateNodeCode({
+              nodeId: values.nodeId,
+              name: values.name,
+              description: values.description || "",
+              category: values.category,
+              executionMode: values.executionMode,
+              color: values.color,
+              inputs: inputsDict,
+              outputs: outputsDict,
+              configSchema,
+            })
+            finalPythonCode = generatedCode
+            console.log('代码未被手动修改，使用新生成的代码')
+          }
+        } else {
+          // 如果没有显示代码编辑器，根据新参数生成代码
+          const generatedCode = nodeGenerator.generateNodeCode({
+            nodeId: values.nodeId,
+            name: values.name,
+            description: values.description || "",
+            category: values.category,
+            executionMode: values.executionMode,
+            color: values.color,
+            inputs: inputsDict,
+            outputs: outputsDict,
+            configSchema,
+          })
+          finalPythonCode = generatedCode
+          console.log('没有显示代码编辑器，生成新代码')
+        }
+      } else {
+        // 创建模式：使用代码编辑器中的代码或生成新代码
+        finalPythonCode = showCodeEditor && pythonCode ? pythonCode : undefined
+      }
+
       const request: CreateNodeRequest = {
         nodeId: values.nodeId,
         name: values.name,
@@ -372,13 +509,48 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
         inputs: inputsDict,
         outputs: outputsDict,
         configSchema,
-        pythonCode: showCodeEditor ? pythonCode : undefined,
+        pythonCode: finalPythonCode,
       }
 
       if (editingNodeId) {
-        await nodeApi.updateCustomNode(editingNodeId, pythonCode)
-        message.success('节点更新成功')
+        // 编辑模式：更新节点的完整信息
+        await nodeApi.updateCustomNodeFull(editingNodeId, request)
+        
+        // 更新所有使用该节点类型的实例
+        // 注意：这会自动清理因参数删除而失效的连接
+        const { edges: edgesBefore } = useWorkflowStore.getState()
+        updateNodeTypeInstances(editingNodeId, {
+          name: values.name,
+          color: values.color,
+          inputParams: inputsDict,
+          outputParams: outputsDict,
+        })
+        const { edges: edgesAfter } = useWorkflowStore.getState()
+        
+        // 检查是否有连接被删除
+        const removedConnections = edgesBefore.filter(
+          (e) => !edgesAfter.find((ea) => ea.id === e.id)
+        )
+        
+        if (codeManuallyModified) {
+          if (removedConnections.length > 0) {
+            message.warning(
+              `节点更新成功（已保留您的代码修改）。所有实例已同步更新，但有 ${removedConnections.length} 个连接因参数被删除而移除。`
+            )
+          } else {
+            message.success('节点更新成功（已保留您的代码修改，所有实例已同步更新）')
+          }
+        } else {
+          if (removedConnections.length > 0) {
+            message.warning(
+              `节点更新成功。所有实例已同步更新，但有 ${removedConnections.length} 个连接因参数被删除而移除。`
+            )
+          } else {
+            message.success('节点更新成功（所有实例已同步更新）')
+          }
+        }
       } else {
+        // 创建模式：创建新节点
         await nodeApi.createCustomNode(request)
         message.success('节点创建成功')
       }
@@ -396,7 +568,6 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
   // 渲染输入/输出的Schema字段表格
   const renderSchemaFields = (
     item: InputOutputItem,
-    isInput: boolean,
     onAddField: (key: string) => void,
     onRemoveField: (key: string, fieldName: string) => void,
     onFieldChange: (key: string, fieldName: string, field: 'name' | 'type', value: string) => void
@@ -407,14 +578,16 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
       <div style={{ marginTop: 8 }}>
         <div style={{ marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span style={{ fontSize: 12, color: '#666' }}>Schema字段 ({schemaFields.length})</span>
-          <Button
-            type="dashed"
-            size="small"
-            icon={<PlusOutlined />}
-            onClick={() => onAddField(item.key)}
-          >
-            添加字段
-          </Button>
+          {!readOnly && (
+            <Button
+              type="dashed"
+              size="small"
+              icon={<PlusOutlined />}
+              onClick={() => onAddField(item.key)}
+            >
+              添加字段
+            </Button>
+          )}
         </div>
         {schemaFields.length === 0 ? (
           <div style={{ padding: '8px 0', color: '#999', fontSize: 12, textAlign: 'center' }}>
@@ -439,6 +612,7 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
                     size="small"
                     value={text}
                     onChange={(e) => onFieldChange(item.key, text, 'name', e.target.value)}
+                    disabled={readOnly}
                     placeholder="字段名"
                   />
                 ),
@@ -452,6 +626,7 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
                     size="small"
                     value={text}
                     onChange={(value) => onFieldChange(item.key, text, 'type', value)}
+                    disabled={readOnly}
                     style={{ width: '100%' }}
                   >
                     <Option value="string">string</Option>
@@ -463,7 +638,7 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
                   </Select>
                 ),
               },
-              {
+              ...(readOnly ? [] : [{
                 title: '操作',
                 key: 'action',
                 width: 80,
@@ -476,7 +651,7 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
                     onClick={() => onRemoveField(item.key, record.fieldName)}
                   />
                 ),
-              },
+              }])
             ]}
           />
         )}
@@ -486,11 +661,15 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
 
   return (
     <Modal
-      title={editingNodeId ? '编辑节点' : '创建节点'}
+      title={readOnly ? '查看节点信息' : (editingNodeId ? '编辑节点' : '创建节点')}
       open={visible}
       onCancel={onCancel}
       width={900}
-      footer={[
+      footer={readOnly ? [
+        <Button key="close" type="primary" onClick={onCancel}>
+          关闭
+        </Button>,
+      ] : [
         <Button key="cancel" onClick={onCancel}>
           取消
         </Button>,
@@ -503,80 +682,93 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
       ]}
     >
       <Form form={form} layout="vertical">
-        <Tabs activeKey={activeTab} onChange={setActiveTab}>
-          <TabPane tab="基本信息" key="basic">
-            <Form.Item
-              name="nodeId"
-              label="节点ID"
-              rules={[
-                { required: true, message: '请输入节点ID' },
-                { pattern: /^[a-zA-Z_][a-zA-Z0-9_]*$/, message: '节点ID只能包含字母、数字和下划线，且不能以数字开头' },
-              ]}
-            >
-              <Input disabled={!!editingNodeId} placeholder="例如: custom_text_process" />
-            </Form.Item>
+        <Tabs activeKey={activeTab} onChange={setActiveTab} items={[
+          {
+            key: 'basic',
+            label: '基本信息',
+            children: (
+              <>
+                <Form.Item
+                  name="nodeId"
+                  label="节点ID"
+                  rules={readOnly ? [] : [
+                    { required: true, message: '请输入节点ID' },
+                    { pattern: /^[a-zA-Z_][a-zA-Z0-9_]*$/, message: '节点ID只能包含字母、数字和下划线，且不能以数字开头' },
+                  ]}
+                >
+                  <Input disabled={readOnly || !!editingNodeId} placeholder="例如: custom_text_process" />
+                </Form.Item>
 
-            <Form.Item name="name" label="节点名称" rules={[{ required: true, message: '请输入节点名称' }]}>
-              <Input placeholder="例如: 文本处理器" />
-            </Form.Item>
+                <Form.Item name="name" label="节点名称" rules={readOnly ? [] : [{ required: true, message: '请输入节点名称' }]}>
+                  <Input disabled={readOnly} placeholder="例如: 文本处理器" />
+                </Form.Item>
 
-            <Form.Item name="description" label="节点描述">
-              <TextArea rows={3} placeholder="描述节点的功能" />
-            </Form.Item>
+                <Form.Item name="description" label="节点描述">
+                  <TextArea rows={3} disabled={readOnly} placeholder="描述节点的功能" />
+                </Form.Item>
 
-            <Form.Item name="category" label="分类" rules={[{ required: true, message: '请输入分类' }]}>
-              <Input placeholder="例如: 数据处理.文本 (支持点分隔符进行树状分类)" />
-            </Form.Item>
+                <Form.Item name="category" label="分类" rules={readOnly ? [] : [{ required: true, message: '请输入分类' }]}>
+                  <Input disabled={readOnly} placeholder="例如: 数据处理.文本 (支持点分隔符进行树状分类)" />
+                </Form.Item>
 
-            <Form.Item
-              name="executionMode"
-              label="执行模式"
-              rules={[{ required: true, message: '请选择执行模式' }]}
-            >
-              <Select>
-                <Option value="sequential">顺序执行</Option>
-                <Option value="streaming">流式处理</Option>
-                <Option value="hybrid">混合模式</Option>
-              </Select>
-            </Form.Item>
+                <Form.Item
+                  name="executionMode"
+                  label="执行模式"
+                  rules={readOnly ? [] : [{ required: true, message: '请选择执行模式' }]}
+                >
+                  <Select disabled={readOnly}>
+                    <Option value="sequential">顺序执行</Option>
+                    <Option value="streaming">流式处理</Option>
+                    <Option value="hybrid">混合模式</Option>
+                  </Select>
+                </Form.Item>
 
-            <Form.Item name="color" label="节点颜色" rules={[{ required: true, message: '请输入颜色' }]}>
-              <Input type="color" style={{ width: 100 }} />
-            </Form.Item>
-          </TabPane>
-
-          <TabPane tab="输入参数" key="inputs">
+                <Form.Item name="color" label="节点颜色" rules={readOnly ? [] : [{ required: true, message: '请输入颜色' }]}>
+                  <Input type="color" disabled={readOnly} style={{ width: 100 }} />
+                </Form.Item>
+              </>
+            ),
+          },
+          {
+            key: 'inputs',
+            label: '输入参数',
+            children: (
             <Space direction="vertical" style={{ width: '100%' }}>
-              <Button type="dashed" icon={<PlusOutlined />} onClick={handleAddInput} block>
-                添加输入
-              </Button>
+              {!readOnly && (
+                <Button type="dashed" icon={<PlusOutlined />} onClick={handleAddInput} block>
+                  添加输入
+                </Button>
+              )}
               {inputs.length === 0 ? (
                 <div style={{ padding: '40px 0', textAlign: 'center', color: '#999' }}>
                   暂无输入参数，点击上方按钮添加
                 </div>
               ) : (
-                <Collapse>
-                  {inputs.map((item) => (
-                    <Panel
-                      key={item.key}
-                      header={
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <Input
-                            size="small"
-                            value={item.name}
-                            onChange={(e) => handleInputChange(item.key, 'name', e.target.value)}
-                            placeholder="输入名称"
-                            onClick={(e) => e.stopPropagation()}
-                            style={{ width: 200 }}
-                          />
+                <Collapse
+                  items={inputs.map((item) => ({
+                    key: item.key,
+                    label: (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <Input
+                          size="small"
+                          value={item.name}
+                          onChange={(e) => handleInputChange(item.key, 'name', e.target.value)}
+                          placeholder="输入名称"
+                          disabled={readOnly}
+                          onClick={(e) => e.stopPropagation()}
+                          style={{ width: 200 }}
+                        />
+                        <div onClick={(e) => e.stopPropagation()}>
                           <Switch
                             checked={item.isStreaming}
                             onChange={(checked) => handleInputChange(item.key, 'isStreaming', checked)}
-                            onClick={(e) => e.stopPropagation()}
+                            disabled={readOnly}
                           />
-                          <span style={{ fontSize: 12, color: '#666' }}>
-                            {item.isStreaming ? '流式' : '非流式'}
-                          </span>
+                        </div>
+                        <span style={{ fontSize: 12, color: '#666' }}>
+                          {item.isStreaming ? '流式' : '非流式'}
+                        </span>
+                        {!readOnly && (
                           <Button
                             type="link"
                             danger
@@ -589,55 +781,61 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
                           >
                             删除
                           </Button>
-                        </div>
-                      }
-                    >
-                      {renderSchemaFields(
-                        item,
-                        true,
-                        handleAddInputSchemaField,
-                        handleRemoveInputSchemaField,
-                        handleInputSchemaFieldChange
-                      )}
-                    </Panel>
-                  ))}
-                </Collapse>
+                        )}
+                      </div>
+                    ),
+                    children: renderSchemaFields(
+                      item,
+                      handleAddInputSchemaField,
+                      handleRemoveInputSchemaField,
+                      handleInputSchemaFieldChange
+                    ),
+                  }))}
+                />
               )}
             </Space>
-          </TabPane>
-
-          <TabPane tab="输出参数" key="outputs">
+            ),
+          },
+          {
+            key: 'outputs',
+            label: '输出参数',
+            children: (
             <Space direction="vertical" style={{ width: '100%' }}>
-              <Button type="dashed" icon={<PlusOutlined />} onClick={handleAddOutput} block>
-                添加输出
-              </Button>
+              {!readOnly && (
+                <Button type="dashed" icon={<PlusOutlined />} onClick={handleAddOutput} block>
+                  添加输出
+                </Button>
+              )}
               {outputs.length === 0 ? (
                 <div style={{ padding: '40px 0', textAlign: 'center', color: '#999' }}>
                   暂无输出参数，点击上方按钮添加
                 </div>
               ) : (
-                <Collapse>
-                  {outputs.map((item) => (
-                    <Panel
-                      key={item.key}
-                      header={
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <Input
-                            size="small"
-                            value={item.name}
-                            onChange={(e) => handleOutputChange(item.key, 'name', e.target.value)}
-                            placeholder="输出名称"
-                            onClick={(e) => e.stopPropagation()}
-                            style={{ width: 200 }}
-                          />
+                <Collapse
+                  items={outputs.map((item) => ({
+                    key: item.key,
+                    label: (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <Input
+                          size="small"
+                          value={item.name}
+                          onChange={(e) => handleOutputChange(item.key, 'name', e.target.value)}
+                          placeholder="输出名称"
+                          disabled={readOnly}
+                          onClick={(e) => e.stopPropagation()}
+                          style={{ width: 200 }}
+                        />
+                        <div onClick={(e) => e.stopPropagation()}>
                           <Switch
                             checked={item.isStreaming}
                             onChange={(checked) => handleOutputChange(item.key, 'isStreaming', checked)}
-                            onClick={(e) => e.stopPropagation()}
+                            disabled={readOnly}
                           />
-                          <span style={{ fontSize: 12, color: '#666' }}>
-                            {item.isStreaming ? '流式' : '非流式'}
-                          </span>
+                        </div>
+                        <span style={{ fontSize: 12, color: '#666' }}>
+                          {item.isStreaming ? '流式' : '非流式'}
+                        </span>
+                        {!readOnly && (
                           <Button
                             type="link"
                             danger
@@ -650,49 +848,78 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
                           >
                             删除
                           </Button>
-                        </div>
-                      }
-                    >
-                      {renderSchemaFields(
-                        item,
-                        false,
-                        handleAddOutputSchemaField,
-                        handleRemoveOutputSchemaField,
-                        handleOutputSchemaFieldChange
-                      )}
-                    </Panel>
-                  ))}
-                </Collapse>
+                        )}
+                      </div>
+                    ),
+                    children: renderSchemaFields(
+                      item,
+                      handleAddOutputSchemaField,
+                      handleRemoveOutputSchemaField,
+                      handleOutputSchemaFieldChange
+                    ),
+                  }))}
+                />
               )}
             </Space>
-          </TabPane>
-
-          <TabPane tab="配置Schema" key="config">
-            <Form.Item name="configSchema">
-              <TextArea
-                rows={10}
-                placeholder='JSON格式，例如: { "operation": { "type": "string", "default": "uppercase" } }'
-              />
-            </Form.Item>
-          </TabPane>
-
-          {showCodeEditor && (
-            <TabPane tab="Python代码" key="code">
-              <Editor
-                height="500px"
-                language="python"
-                value={pythonCode}
-                onChange={(value) => setPythonCode(value || '')}
-                theme="vs-dark"
-                options={{
-                  minimap: { enabled: false },
-                  fontSize: 14,
-                  wordWrap: 'on',
-                }}
-              />
-            </TabPane>
-          )}
-        </Tabs>
+            ),
+          },
+          {
+            key: 'config',
+            label: '配置Schema',
+            children: (
+              <Form.Item name="configSchema">
+                <TextArea
+                  rows={10}
+                  disabled={readOnly}
+                  placeholder='JSON格式，例如: { "operation": { "type": "string", "default": "uppercase" } }'
+                />
+              </Form.Item>
+            ),
+          },
+          ...(showCodeEditor ? [{
+            key: 'code',
+            label: 'Python代码',
+            children: (
+              <>
+                <Editor
+                  height="500px"
+                  language="python"
+                  value={pythonCode}
+                  onChange={(value) => {
+                    if (!readOnly) {
+                      const newCode = value || ''
+                      setPythonCode(newCode)
+                      // 检测代码是否被手动修改（与原始代码不同）
+                      if (editingNodeId && newCode !== originalPythonCode) {
+                        setCodeManuallyModified(true)
+                      }
+                    }
+                  }}
+                  theme="vs-dark"
+                  options={{
+                    minimap: { enabled: false },
+                    fontSize: 14,
+                    wordWrap: 'on',
+                    readOnly: readOnly,
+                  }}
+                />
+                {editingNodeId && codeManuallyModified && (
+                  <div style={{ 
+                    marginTop: 8, 
+                    padding: 8, 
+                    background: '#fff7e6', 
+                    border: '1px solid #ffd591',
+                    borderRadius: 4,
+                    fontSize: 12,
+                    color: '#d46b08'
+                  }}>
+                    ⚠️ 代码已被手动修改。修改参数后，您的代码修改将被保留。
+                  </div>
+                )}
+              </>
+            ),
+          }] : []),
+        ]} />
       </Form>
     </Modal>
   )

@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Button, Space, Upload, message, Modal } from 'antd'
+import { Button, Space, Upload, message, Modal, Input } from 'antd'
 import {
   SaveOutlined,
   FolderOpenOutlined,
@@ -8,17 +8,22 @@ import {
   PlayCircleOutlined,
   CheckCircleOutlined,
   PlusOutlined,
+  CopyOutlined,
 } from '@ant-design/icons'
 import { useWorkflowStore } from '@/stores/workflowStore'
-import { workflowApi, validationApi } from '@/services/api'
+import { workflowApi, validationApi, fileApi } from '@/services/api'
 import { YamlService } from '@/services/yamlService'
 import NodeCreatorModal from '@/components/NodeCreator'
+import FileManager from '@/components/FileManager'
 import './Toolbar.css'
 
 const Toolbar: React.FC = () => {
-  const { nodes, edges, loadWorkflow, exportWorkflow } = useWorkflowStore()
+  const { nodes, edges, loadWorkflow, exportWorkflow, currentFileName, setCurrentFileName } = useWorkflowStore()
   const [loading, setLoading] = useState(false)
   const [nodeCreatorVisible, setNodeCreatorVisible] = useState(false)
+  const [fileManagerVisible, setFileManagerVisible] = useState(false)
+  const [saveAsVisible, setSaveAsVisible] = useState(false)
+  const [saveAsFileName, setSaveAsFileName] = useState('')
 
   const handleNodeCreatorSuccess = () => {
     // 节点创建成功后，触发事件通知 NodePalette 刷新节点列表
@@ -30,13 +35,79 @@ const Toolbar: React.FC = () => {
     try {
       setLoading(true)
       const config = exportWorkflow()
-      await workflowApi.saveWorkflow(config)
-      message.success('工作流保存成功')
+      
+      if (currentFileName) {
+        // 保存到已有文件
+        await fileApi.updateFile(currentFileName, config, true)
+        message.success('文件保存成功')
+      } else {
+        // 如果没有文件名，弹出另存为对话框
+        setSaveAsVisible(true)
+        setSaveAsFileName('')
+      }
     } catch (error) {
       message.error('保存失败: ' + (error instanceof Error ? error.message : '未知错误'))
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleSaveAs = async () => {
+    if (!saveAsFileName.trim()) {
+      message.warning('请输入文件名')
+      return
+    }
+
+    // 确保文件扩展名
+    let finalFileName = saveAsFileName.trim()
+    if (!finalFileName.endsWith('.yaml') && !finalFileName.endsWith('.yml')) {
+      finalFileName += '.yaml'
+    }
+
+    try {
+      setLoading(true)
+      const config = exportWorkflow()
+      
+      if (currentFileName === finalFileName) {
+        // 如果是同名文件，直接更新
+        await fileApi.updateFile(finalFileName, config, true)
+      } else {
+        // 创建新文件
+        await fileApi.createFile(finalFileName, config)
+        setCurrentFileName(finalFileName)
+      }
+      
+      message.success('文件保存成功')
+      setSaveAsVisible(false)
+      setSaveAsFileName('')
+    } catch (error: any) {
+      if (error.response?.status === 409) {
+        Modal.confirm({
+          title: '文件已存在',
+          content: `文件 "${finalFileName}" 已存在，是否覆盖？`,
+          onOk: async () => {
+            try {
+              const config = exportWorkflow()
+              await fileApi.updateFile(finalFileName, config, true)
+              setCurrentFileName(finalFileName)
+              message.success('文件保存成功')
+              setSaveAsVisible(false)
+              setSaveAsFileName('')
+            } catch (err) {
+              message.error('保存失败: ' + (err instanceof Error ? err.message : '未知错误'))
+            }
+          },
+        })
+      } else {
+        message.error('保存失败: ' + (error instanceof Error ? error.message : '未知错误'))
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleOpenFile = (filename: string) => {
+    setCurrentFileName(filename)
   }
 
   const handleExport = () => {
@@ -63,6 +134,7 @@ const Toolbar: React.FC = () => {
         const content = e.target?.result as string
         const config = YamlService.parse(content)
         await loadWorkflow(config)
+        setCurrentFileName(null) // 导入的文件未保存到服务器，清除文件名
         message.success('导入成功')
       } catch (error) {
         message.error('导入失败: ' + (error instanceof Error ? error.message : '未知错误'))
@@ -97,9 +169,17 @@ const Toolbar: React.FC = () => {
     <div className="toolbar">
       <Space>
         <Button icon={<SaveOutlined />} onClick={handleSave} loading={loading}>
-          保存
+          保存{currentFileName ? ` (${currentFileName})` : ''}
         </Button>
-        <Button icon={<FolderOpenOutlined />}>打开</Button>
+        <Button icon={<CopyOutlined />} onClick={() => {
+          setSaveAsVisible(true)
+          setSaveAsFileName(currentFileName || '')
+        }}>
+          另存为
+        </Button>
+        <Button icon={<FolderOpenOutlined />} onClick={() => setFileManagerVisible(true)}>
+          打开
+        </Button>
         <Upload
           accept=".yaml,.yml"
           showUploadList={false}
@@ -125,6 +205,29 @@ const Toolbar: React.FC = () => {
         onCancel={() => setNodeCreatorVisible(false)}
         onSuccess={handleNodeCreatorSuccess}
       />
+      <FileManager
+        visible={fileManagerVisible}
+        onClose={() => setFileManagerVisible(false)}
+        onFileSelect={handleOpenFile}
+      />
+      <Modal
+        title="另存为"
+        open={saveAsVisible}
+        onOk={handleSaveAs}
+        onCancel={() => {
+          setSaveAsVisible(false)
+          setSaveAsFileName('')
+        }}
+        confirmLoading={loading}
+      >
+        <Input
+          placeholder="输入文件名（如：my_workflow.yaml）"
+          value={saveAsFileName}
+          onChange={(e) => setSaveAsFileName(e.target.value)}
+          onPressEnter={handleSaveAs}
+          autoFocus
+        />
+      </Modal>
     </div>
   )
 }

@@ -1,10 +1,9 @@
-import React, { useCallback, useRef, useEffect } from 'react'
+import React, { useCallback, useRef, useEffect, useMemo } from 'react'
 import ReactFlow, {
   Background,
   Controls,
   Node,
   Edge,
-  Connection,
   ReactFlowProvider,
   ReactFlowInstance,
   MarkerType,
@@ -12,6 +11,7 @@ import ReactFlow, {
 import 'reactflow/dist/style.css'
 import { useWorkflowStore } from '@/stores/workflowStore'
 import { NodeType } from '@/types/node'
+import { WorkflowValidator } from '@/utils/validators'
 import CustomNode from './CustomNode'
 import SmartEdge from './SmartEdge'
 import EnhancedMiniMap from './EnhancedMiniMap'
@@ -161,6 +161,11 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
     [addNode]
   )
 
+  // 验证所有连接，找出无效的连接
+  const invalidEdgeIds = useMemo(() => {
+    return WorkflowValidator.validateConnections(edges, nodes)
+  }, [edges, nodes])
+
   // 自定义边的样式（不显示标签，使用智能路径）
   const edgeOptions = {
     type: 'smart', // 使用智能边类型
@@ -173,39 +178,52 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
   }
 
   return (
-    <ReactFlowProvider>
-      <ReactFlow
-        nodes={nodes}
-        edges={edges.map((edge) => {
-          const { label, ...edgeWithoutLabel } = edge
-          return {
-            ...edgeWithoutLabel,
-            ...edgeOptions,
-            selected: edge.id === selectedEdgeId,
-          }
-        })}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        onConnect={onConnect}
-        onNodeClick={handleNodeClick}
-        onEdgeClick={handleEdgeClick}
-        onPaneClick={handlePaneClick}
-        edgesUpdatable={true}
-        edgesFocusable={true}
-        onInit={onInit}
-        onDragOver={onDragOver}
-        onDrop={onDrop}
-        nodeTypes={nodeTypes}
-        edgeTypes={edgeTypes}
-        fitView
-        attributionPosition="bottom-left"
-        defaultEdgeOptions={edgeOptions}
-      >
-        <Background />
-        <Controls />
-        <EnhancedMiniMap reactFlowInstance={reactFlowInstance.current} />
-      </ReactFlow>
-    </ReactFlowProvider>
+    <div style={{ width: '100%', height: '100%' }}>
+      <ReactFlowProvider>
+        <ReactFlow
+          nodes={nodes}
+          edges={edges.map((edge) => {
+            const { label, ...edgeWithoutLabel } = edge
+            const isValid = !invalidEdgeIds.includes(edge.id)
+            return {
+              ...edgeWithoutLabel,
+              ...edgeOptions,
+              selected: edge.id === selectedEdgeId,
+              // 如果连接无效，使用红色样式
+              style: {
+                ...edgeOptions.style,
+                stroke: isValid ? undefined : '#ff4d4f', // 红色表示错误
+                strokeWidth: isValid ? 2 : 3, // 错误连接稍微粗一点
+              },
+              // 添加数据标记，方便SmartEdge组件使用
+              data: {
+                isValid,
+              },
+            }
+          })}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          onConnect={onConnect}
+          onNodeClick={handleNodeClick}
+          onEdgeClick={handleEdgeClick}
+          onPaneClick={handlePaneClick}
+          edgesUpdatable={true}
+          edgesFocusable={true}
+          onInit={onInit}
+          onDragOver={onDragOver}
+          onDrop={onDrop}
+          nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
+          fitView
+          attributionPosition="bottom-left"
+          defaultEdgeOptions={edgeOptions}
+        >
+          <Background />
+          <Controls />
+          <EnhancedMiniMap reactFlowInstance={reactFlowInstance.current} />
+        </ReactFlow>
+      </ReactFlowProvider>
+    </div>
   )
 }
 

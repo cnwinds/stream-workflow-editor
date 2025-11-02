@@ -115,8 +115,8 @@ export const nodeApi = {
     category: string
     executionMode: string
     color: string
-    inputs: any[]
-    outputs: any[]
+    inputs: Record<string, { isStreaming: boolean; schema: Record<string, any> }>
+    outputs: Record<string, { isStreaming: boolean; schema: Record<string, any> }>
     configSchema: Record<string, any>
     pythonCode?: string
   }) => {
@@ -142,6 +142,23 @@ export const nodeApi = {
     return response.data
   },
 
+  // 更新自定义节点完整信息（元数据+代码）
+  updateCustomNodeFull: async (nodeId: string, request: {
+    nodeId: string
+    name: string
+    description: string
+    category: string
+    executionMode: string
+    color: string
+    inputs: Record<string, { isStreaming: boolean; schema: Record<string, any> }>
+    outputs: Record<string, { isStreaming: boolean; schema: Record<string, any> }>
+    configSchema: Record<string, any>
+    pythonCode?: string
+  }) => {
+    const response = await api.put(`/nodes/custom/${nodeId}/full`, request)
+    return response.data
+  },
+
   // 删除自定义节点
   deleteCustomNode: async (nodeId: string) => {
     const response = await api.delete(`/nodes/custom/${nodeId}`)
@@ -151,6 +168,58 @@ export const nodeApi = {
   // 获取节点Python代码
   getNodeCode: async (nodeId: string) => {
     const response = await api.get(`/nodes/custom/${nodeId}/code`)
+    return response.data
+  },
+}
+
+// 文件管理 API
+export interface FileInfo {
+  filename: string
+  size: number
+  modified: number
+}
+
+export const fileApi = {
+  // 获取文件列表
+  listFiles: async (): Promise<FileInfo[]> => {
+    const response = await api.get('/files')
+    return response.data
+  },
+
+  // 读取文件内容
+  readFile: async (filename: string): Promise<WorkflowConfig> => {
+    const response = await api.get(`/files/${encodeURIComponent(filename)}`)
+    return response.data
+  },
+
+  // 创建新文件
+  createFile: async (filename: string, config: WorkflowConfig): Promise<FileInfo> => {
+    const response = await api.post('/files', {
+      filename,
+      content: config,
+    })
+    return response.data
+  },
+
+  // 更新文件内容
+  updateFile: async (filename: string, config: WorkflowConfig, overwrite: boolean = true): Promise<FileInfo> => {
+    const response = await api.put(`/files/${encodeURIComponent(filename)}`, {
+      content: config,
+      overwrite,
+    })
+    return response.data
+  },
+
+  // 删除文件
+  deleteFile: async (filename: string): Promise<void> => {
+    await api.delete(`/files/${encodeURIComponent(filename)}`)
+  },
+
+  // 重命名文件
+  renameFile: async (oldName: string, newName: string): Promise<FileInfo> => {
+    const response = await api.post(`/files/${encodeURIComponent(oldName)}/rename`, {
+      new_name: newName,
+    })
     return response.data
   },
 }

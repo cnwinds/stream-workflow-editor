@@ -8,6 +8,7 @@ from api.services.workflow_service import workflow_service
 from api.services.custom_node_service import (
     create_custom_node,
     update_custom_node,
+    update_custom_node_full,
     delete_custom_node,
     list_custom_nodes,
     get_node_code,
@@ -240,4 +241,84 @@ async def get_node_code_endpoint(node_id: str):
 async def update_node_code_endpoint(node_id: str, request: UpdateNodeCodeRequest):
     """更新节点Python代码（与 PUT /custom/{node_id} 相同）"""
     return await update_custom_node_endpoint(node_id, request)
+
+
+@router.put("/custom/{node_id}/full")
+async def update_custom_node_full_endpoint(node_id: str, request: CreateNodeRequest):
+    """更新自定义节点的完整信息（元数据+代码）"""
+    try:
+        # 验证节点定义
+        is_valid, error_msg = validate_node_definition(
+            request.nodeId,
+            request.inputs,
+            request.outputs
+        )
+        if not is_valid:
+            raise HTTPException(status_code=400, detail=error_msg)
+        
+        # 如果节点ID不匹配，不允许更新
+        if request.nodeId != node_id:
+            raise HTTPException(status_code=400, detail="节点ID不匹配")
+        
+        # 转换inputs和outputs为列表格式（向后兼容代码生成器）
+        inputs_list = [
+            {
+                'name': name,
+                'isStreaming': param.get('isStreaming', False),
+                'schema': param.get('schema', {})
+            }
+            for name, param in request.inputs.items()
+        ]
+        outputs_list = [
+            {
+                'name': name,
+                'isStreaming': param.get('isStreaming', False),
+                'schema': param.get('schema', {})
+            }
+            for name, param in request.outputs.items()
+        ]
+        
+        # 如果提供了Python代码，使用提供的代码；否则生成代码
+        # 编辑模式下，优先使用用户提供的代码
+        if request.pythonCode and request.pythonCode.strip():
+            python_code = request.pythonCode
+            print(f"使用提供的Python代码，长度: {len(python_code)}")
+        else:
+            # 如果没有提供代码，生成新代码
+            print("生成新的Python代码")
+            python_code = generate_node_code(
+                node_id=request.nodeId,
+                name=request.name,
+                description=request.description,
+                category=request.category,
+                execution_mode=request.executionMode,
+                color=request.color,
+                inputs=inputs_list,
+                outputs=outputs_list,
+                config_schema=request.configSchema
+            )
+        
+        # 更新节点（保存为字典格式）
+        node_entry = update_custom_node_full(
+            node_id=node_id,
+            name=request.name,
+            description=request.description,
+            category=request.category,
+            execution_mode=request.executionMode,
+            color=request.color,
+            inputs=request.inputs,  # 保存为字典格式
+            outputs=request.outputs,  # 保存为字典格式
+            config_schema=request.configSchema,
+            python_code=python_code
+        )
+        
+        print(f"节点 {node_id} 更新成功，Python文件已保存")
+        return {"message": "节点更新成功", "node": node_entry}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        print(f"更新自定义节点失败: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"更新节点失败: {str(e)}")
 
