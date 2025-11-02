@@ -1,0 +1,61 @@
+.workflow-canvas {
+  width: 100%;
+  height: 100%;
+}
+
+.react-flow__node {
+  font-size: 12px;
+}
+
+.react-flow__node.selected {
+  outline: 2px solid #1890ff;
+}
+
+.react-flow__edge.selected {
+  stroke: #1890ff;
+}
+
+.react-flow__handle {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #1890ff;
+}
+
+.react-flow__handle-left {
+  left: -4px;
+}
+
+.react-flow__handle-right {
+  right: -4px;
+}
+
+/* 连接线标签样式 */
+.react-flow__edge-text {
+  font-size: 11px;
+  fill: #595959;
+  font-weight: 500;
+}
+
+.react-flow__edge-textbg {
+  fill: #fff;
+  stroke: #fff;
+  stroke-width: 4px;
+}
+
+/* 连接线样式 */
+.react-flow__edge-path {
+  stroke: #b1b1b7;
+  stroke-width: 2;
+}
+
+.react-flow__edge.selected .react-flow__edge-path {
+  stroke: #1890ff;
+  stroke-width: 3;
+}
+
+.react-flow__edge:hover .react-flow__edge-path {
+  stroke: #52c41a;
+  stroke-width: 2.5;
+}
+

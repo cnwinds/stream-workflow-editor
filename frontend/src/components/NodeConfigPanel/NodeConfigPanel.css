@@ -1,0 +1,13 @@
+.node-config-panel {
+  height: 100%;
+  overflow-y: auto;
+  padding: 16px;
+}
+
+.yaml-editor-container {
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+

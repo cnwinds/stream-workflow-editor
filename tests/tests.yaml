@@ -1,0 +1,63 @@
+workflow:
+  name: "大模型语音聊天工作流"
+  description: "完整的语音对话流程：VAD -> ASR -> LLM -> TTS"
+  config:
+    stream_timeout: 300  # 流式超时时间（秒）
+    continue_on_error: false
+  
+  nodes:
+    # 1. 语音活动检测节点 (VAD)
+    - id: "vad"
+      type: "vad_node"
+      name: "语音活动检测"
+      config:
+        threshold: 0.5  # VAD检测阈值
+        min_speech_duration: 0.3  # 最小语音持续时间（秒）
+    
+    # 2. 语音识别节点 (ASR)
+    - id: "asr"
+      type: "asr_node"
+      name: "语音识别"
+      config:
+        model: "whisper"  # ASR模型名称
+        language: "zh"  # 语言代码
+        stream_mode: true  # 是否流式识别
+    
+    # 3. 大模型对话节点 (Agent/LLM)
+    - id: "agent"
+      type: "agent_node"
+      name: "智能对话代理"
+      config:
+        model: "gpt-4"  # 大模型名称
+        temperature: 0.7  # 生成温度
+        stream: true  # 是否流式生成
+        system_prompt: "你是一个专业的AI语音助手，请用简洁明了、自然流畅的方式回答问题，回答要简短易懂。"  # 系统提示词
+    
+    # 4. 文本转语音节点 (TTS)
+    - id: "tts"
+      type: "tts_node"
+      name: "文本转语音"
+      config:
+        voice: "zh-CN-XiaoxiaoNeural"  # 音色名称
+        speed: 1.0  # 语速
+        pitch: 1.0  # 音调
+        audio_format: "opus"  # 输出音频格式
+  
+  # 参数级连接 - 定义数据流路径
+  connections:
+    # VAD处理后的音频流 -> ASR输入
+    - from: "vad.audio_stream"
+      to: "asr.audio_in"
+    
+    # ASR识别的文本流 -> Agent输入
+    - from: "asr.text_stream"
+      to: "agent.text_input"
+    
+    # Agent生成的响应文本 -> TTS输入
+    - from: "agent.response_text"
+      to: "tts.text_input"
+    
+    # TTS播报状态 -> Agent播报状态通知（可选，用于实现打断功能）
+    - from: "tts.broadcast_status"
+      to: "agent.broadcast_status"
+

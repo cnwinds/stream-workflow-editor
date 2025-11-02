@@ -1,0 +1,10 @@
+{
+  "custom_nodes": [
+    {
+      "id": "TestNode1",
+      "pythonFile": "TestNode1.py",
+      "createdAt": "2025-11-02T08:09:17.030767Z",
+      "updatedAt": "2025-11-02T08:09:17.030767Z"
+    }
+  ]
+}

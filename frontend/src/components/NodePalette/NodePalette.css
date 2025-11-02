@@ -1,0 +1,109 @@
+.node-palette {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.node-palette-header {
+  padding: 8px;
+  border-bottom: 1px solid #e8e8e8;
+}
+
+.node-palette-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px;
+}
+
+.node-category {
+  margin-bottom: 8px;
+}
+
+.node-category-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #8c8c8c;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+}
+
+.node-category-items {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.node-item {
+  cursor: grab;
+  user-select: none;
+}
+
+.node-item .ant-card-body {
+  padding: 6px 8px !important;
+}
+
+.node-item:active {
+  cursor: grabbing;
+}
+
+.node-item-content {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.node-item-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.node-item-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.node-item-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: #262626;
+  line-height: 1.3;
+}
+
+.node-item-desc {
+  font-size: 10px;
+  color: #8c8c8c;
+  margin-top: 1px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.2;
+}
+
+/* 优化 Collapse 组件的间距 */
+.node-palette-content .ant-collapse {
+  border: none;
+  background: transparent;
+}
+
+.node-palette-content .ant-collapse-item {
+  border-bottom: none;
+  margin-bottom: 4px;
+}
+
+.node-palette-content .ant-collapse-header {
+  padding: 6px 8px !important;
+  font-size: 12px;
+}
+
+.node-palette-content .ant-collapse-content {
+  border-top: none;
+}
+
+.node-palette-content .ant-collapse-content-box {
+  padding: 4px 8px 6px !important;
+}
+
+

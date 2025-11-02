@@ -1,0 +1,17 @@
+.node-creator-modal {
+  .ant-modal-body {
+    padding: 24px;
+  }
+
+  .ant-tabs-content-holder {
+    padding-top: 16px;
+  }
+
+  .ant-table {
+    .ant-table-tbody > tr > td {
+      padding: 8px;
+    }
+  }
+}
+
+
