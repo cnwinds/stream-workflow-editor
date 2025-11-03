@@ -12,6 +12,8 @@ interface CustomNodeData {
   type?: string
   inputParams?: Record<string, ParameterSchema>
   outputParams?: Record<string, ParameterSchema>
+  executionMode?: 'sequential' | 'streaming' | 'hybrid'
+  color?: string
 }
 
 const CustomNode: React.FC<NodeProps<CustomNodeData>> = ({ data, selected, id }) => {

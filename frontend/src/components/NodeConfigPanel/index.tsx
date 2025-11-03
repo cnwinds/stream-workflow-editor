@@ -6,7 +6,6 @@ import Editor from '@monaco-editor/react'
 import { YamlService } from '@/services/yamlService'
 import NodeCreatorModal from '@/components/NodeCreator'
 import { WorkflowValidator } from '@/utils/validators'
-import { Edge } from 'reactflow'
 import './NodeConfigPanel.css'
 
 const { TextArea } = Input
