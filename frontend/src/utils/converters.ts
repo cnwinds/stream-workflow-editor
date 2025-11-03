@@ -99,27 +99,31 @@ export class WorkflowConverter {
     })
 
     // 解析连接 - 支持 from/to 格式和 source/target 格式
+    // 重要：连接配置中使用的是节点ID（node.id），而不是节点类型（node.type）
+    // 格式：{id}.连接名，例如 "opening_agent_node.opening_text"
     const edges: Edge[] = (config.workflow.connections || []).map((conn, index) => {
-      // 支持 from/to 格式（如 "vad.audio_stream"）
+      // 支持 from/to 格式（如 "opening_agent_node.opening_text"）
+      // from/to 的第一部分是节点ID，第二部分是连接名称
       if (conn.from && conn.to) {
         const [source, sourceHandle] = conn.from.split('.')
         const [target, targetHandle] = conn.to.split('.')
         
         return {
           id: conn.id || `edge-${index}-${source}-${target}`,
-          source: source,
+          source: source, // 节点ID
           sourceHandle: sourceHandle || 'output',
-          target: target,
+          target: target, // 节点ID
           targetHandle: targetHandle || 'input',
           label: conn.label || `${sourceHandle || 'output'} → ${targetHandle || 'input'}`,
         }
       } else {
         // 支持 source/target 格式（React Flow 格式）
+        // source/target 也应该是节点ID
         return {
           id: conn.id || `edge-${index}-${conn.source}-${conn.target}`,
-          source: conn.source || '',
+          source: conn.source || '', // 节点ID
           sourceHandle: conn.sourceHandle || 'output',
-          target: conn.target || '',
+          target: conn.target || '', // 节点ID
           targetHandle: conn.targetHandle || 'input',
           label: conn.label,
         }

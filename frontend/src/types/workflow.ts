@@ -18,13 +18,16 @@ export interface WorkflowNode {
 export interface WorkflowConnection {
   id?: string
   // 支持两种格式：
-  // 1. from/to 格式（如 "vad.audio_stream"）
-  from?: string
-  to?: string
+  // 1. from/to 格式（如 "opening_agent_node.opening_text"）
+  //    重要：使用的是节点ID（node.id），而不是节点类型（node.type）
+  //    格式：{id}.连接名，例如 "opening_agent_node.opening_text"
+  from?: string // 格式：节点ID.连接名
+  to?: string // 格式：节点ID.连接名
   // 2. source/target 格式（React Flow 格式）
-  source?: string
+  //    source/target 也应该是节点ID
+  source?: string // 节点ID
   sourceHandle?: string
-  target?: string
+  target?: string // 节点ID
   targetHandle?: string
   label?: string
 }

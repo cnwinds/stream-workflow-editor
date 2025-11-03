@@ -48,8 +48,23 @@ export class WorkflowValidator {
     })
 
     // 验证连接
+    // 重要：连接配置中使用的是节点ID（node.id），而不是节点类型（node.type）
     const validNodeIds = new Set(config.workflow.nodes?.map((n) => n.id) || [])
     config.workflow.connections?.forEach((conn) => {
+      // 支持 from/to 格式（如 "opening_agent_node.opening_text"）
+      // from/to 的第一部分是节点ID
+      if (conn.from && conn.to) {
+        const sourceId = conn.from.split('.')[0]
+        const targetId = conn.to.split('.')[0]
+        if (!validNodeIds.has(sourceId)) {
+          errors.push({ message: `连接源节点 "${sourceId}" 不存在（from: "${conn.from}"）` })
+        }
+        if (!validNodeIds.has(targetId)) {
+          errors.push({ message: `连接目标节点 "${targetId}" 不存在（to: "${conn.to}"）` })
+        }
+      }
+      // 支持 source/target 格式（React Flow 格式）
+      // source/target 也应该是节点ID
       if (conn.source && !validNodeIds.has(conn.source)) {
         errors.push({ message: `连接源节点 "${conn.source}" 不存在` })
       }

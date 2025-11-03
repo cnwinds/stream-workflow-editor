@@ -248,27 +248,31 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
     )
 
     // 解析连接
+    // 重要：连接配置中使用的是节点ID（node.id），而不是节点类型（node.type）
+    // 格式：{id}.连接名，例如 "opening_agent_node.opening_text"
     const edges: Edge[] = (config.workflow.connections || []).map((conn, index) => {
-      // 支持 from/to 格式（如 "vad.audio_stream"）
+      // 支持 from/to 格式（如 "opening_agent_node.opening_text"）
+      // from/to 的第一部分是节点ID，第二部分是连接名称
       if (conn.from && conn.to) {
         const [source, sourceHandle] = conn.from.split('.')
         const [target, targetHandle] = conn.to.split('.')
         
         return {
           id: conn.id || `edge-${index}-${source}-${target}`,
-          source: source,
+          source: source, // 节点ID
           sourceHandle: sourceHandle || 'output',
-          target: target,
+          target: target, // 节点ID
           targetHandle: targetHandle || 'input',
           // 不设置 label，连线不显示文字
         }
       } else {
         // 支持 source/target 格式（React Flow 格式）
+        // source/target 也应该是节点ID
         return {
           id: conn.id || `edge-${index}-${conn.source}-${conn.target}`,
-          source: conn.source || '',
+          source: conn.source || '', // 节点ID
           sourceHandle: conn.sourceHandle || 'output',
-          target: conn.target || '',
+          target: conn.target || '', // 节点ID
           targetHandle: conn.targetHandle || 'input',
           // 不设置 label，连线不显示文字
         }
@@ -480,10 +484,12 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
     })
 
     // 导出为 from/to 格式（与 stream-workflow 兼容）
+    // 重要：使用节点ID（node.id），而不是节点类型（node.type）
+    // 格式：{id}.连接名，例如 "opening_agent_node.opening_text"
     const workflowConnections: WorkflowConnection[] = edges.map((edge) => ({
       id: edge.id,
-      from: `${edge.source}.${edge.sourceHandle || 'output'}`,
-      to: `${edge.target}.${edge.targetHandle || 'input'}`,
+      from: `${edge.source}.${edge.sourceHandle || 'output'}`, // edge.source 是节点ID
+      to: `${edge.target}.${edge.targetHandle || 'input'}`, // edge.target 是节点ID
       label: edge.label as string,
     }))
 
