@@ -12,13 +12,14 @@ from typing import Dict, Any, List, Optional
 import importlib
 
 try:
-    from workflow_engine.core.node import Node
-    from workflow_engine.core import ParameterSchema
+    from stream_workflow.core.node import Node
+    from stream_workflow.core import ParameterSchema
 except ImportError:
     Node = None
     ParameterSchema = None
 
 from ..config import config
+from ..logger import logger
 
 
 def get_custom_nodes_dir() -> Path:
@@ -51,7 +52,7 @@ def load_registry() -> Dict[str, Any]:
         with open(registry_file, 'r', encoding='utf-8') as f:
             return json.load(f)
     except Exception as e:
-        print(f"加载注册表失败: {e}")
+        logger.error(f"加载注册表失败: {e}", exc_info=True)
         return {"custom_nodes": []}
 
 
@@ -188,7 +189,7 @@ def get_custom_node_metadata(node_id: str) -> Optional[Dict[str, Any]]:
                     # 优先匹配装饰器设置的节点ID
                     if node_id_from_class == node_id:
                         node_class = obj
-                        print(f"找到节点类: {name} (node_id={node_id_from_class})")
+                        logger.debug(f"找到节点类: {name} (node_id={node_id_from_class})")
                         break
         
         # 如果还没找到，尝试匹配第一个候选类（通常一个文件只有一个节点类）
@@ -315,7 +316,7 @@ def create_custom_node(
             if reload_func:
                 reload_func()
     except Exception as e:
-        print(f"重新加载自定义节点失败: {e}")
+        logger.warning(f"重新加载自定义节点失败: {e}", exc_info=True)
     
     return node_entry
 
@@ -371,7 +372,7 @@ def update_custom_node(
             if reload_func:
                 reload_func()
     except Exception as e:
-        print(f"重新加载自定义节点失败: {e}")
+        logger.warning(f"重新加载自定义节点失败: {e}", exc_info=True)
     
     return node_entry
 
@@ -408,9 +409,8 @@ def update_custom_node_full(
     python_path = get_custom_nodes_dir() / python_file
     
     # 保存Python代码
-    print(f"[update_custom_node_full] 正在保存Python代码到: {python_path}")
-    print(f"[update_custom_node_full] 代码长度: {len(python_code)} 字符")
-    print(f"[update_custom_node_full] 代码前100字符: {python_code[:100]}")
+    logger.debug(f"正在保存Python代码到: {python_path}")
+    logger.debug(f"代码长度: {len(python_code)} 字符")
     
     with open(python_path, 'w', encoding='utf-8') as f:
         f.write(python_code)
@@ -419,9 +419,9 @@ def update_custom_node_full(
     if python_path.exists():
         with open(python_path, 'r', encoding='utf-8') as f:
             saved_content = f.read()
-            print(f"[update_custom_node_full] 验证：文件已写入，内容长度: {len(saved_content)} 字符")
+            logger.debug(f"验证：文件已写入，内容长度: {len(saved_content)} 字符")
             if saved_content != python_code:
-                print(f"[update_custom_node_full] 警告：保存的内容与原始内容不匹配！")
+                logger.warning("保存的内容与原始内容不匹配！")
     
     # 尝试从代码中提取实际的节点类型并更新注册表
     actual_type = None
@@ -447,7 +447,7 @@ def update_custom_node_full(
             if reload_func:
                 reload_func()
     except Exception as e:
-        print(f"重新加载自定义节点失败: {e}")
+        logger.warning(f"重新加载自定义节点失败: {e}", exc_info=True)
     
     return node_entry
 
@@ -497,7 +497,7 @@ def list_custom_nodes() -> List[Dict[str, Any]]:
         # 自动扫描目录中的节点文件
         custom_nodes_dir = get_custom_nodes_dir()
         if custom_nodes_dir.exists():
-            print(f"注册表为空，正在扫描节点目录: {custom_nodes_dir}")
+            logger.info(f"注册表为空，正在扫描节点目录: {custom_nodes_dir}")
             _auto_scan_nodes(custom_nodes_dir)
             # 重新加载注册表
             registry = load_registry()
@@ -524,9 +524,9 @@ def list_custom_nodes() -> List[Dict[str, Any]]:
 def _auto_scan_nodes(custom_nodes_dir: Path):
     """自动扫描节点目录并创建注册表"""
     try:
-        from workflow_engine.core.node import Node
+        from stream_workflow.core.node import Node
     except ImportError:
-        print("警告: workflow_engine 未安装，无法扫描节点")
+        logger.warning("stream_workflow 未安装，无法扫描节点")
         return
     
     import importlib
@@ -587,15 +587,15 @@ def _auto_scan_nodes(custom_nodes_dir: Path):
                 registry.setdefault("custom_nodes", []).append(node_entry)
                 existing_types.add(node_type)
                 existing_registry_ids.add(registry_id)
-                print(f"发现新节点: {node_type} ({py_file.name}, registry_id={registry_id})")
+                logger.info(f"发现新节点: {node_type} ({py_file.name}, registry_id={registry_id})")
         
         except Exception as e:
-            print(f"扫描节点文件 {py_file.name} 失败: {e}")
+            logger.warning(f"扫描节点文件 {py_file.name} 失败: {e}", exc_info=True)
     
     # 保存注册表
     if registry.get("custom_nodes"):
         save_registry(registry)
-        print(f"已自动创建注册表，包含 {len(registry['custom_nodes'])} 个节点")
+        logger.info(f"已自动创建注册表，包含 {len(registry['custom_nodes'])} 个节点")
 
 
 def get_node_code(node_id: str) -> Optional[str]:

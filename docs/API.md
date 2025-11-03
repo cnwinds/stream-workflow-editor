@@ -6,7 +6,7 @@ Stream Workflow API 为流式工作流可视化编辑器提供后端服务接口
 
 ## 基础信息
 
-- **Base URL**: `http://localhost:8000/api`
+- **Base URL**: `http://localhost:3010/api`
 - **Content-Type**: `application/json`
 
 ## 工作流管理 API

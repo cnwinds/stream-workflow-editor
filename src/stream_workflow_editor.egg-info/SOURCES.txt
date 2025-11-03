@@ -30,4 +30,7 @@ src/stream_workflow_editor/custom_nodes/TestNode1.py
 src/stream_workflow_editor/custom_nodes/__init__.py
 src/stream_workflow_editor/custom_nodes/registry.json
 src/stream_workflow_editor/custom_nodes/templates/node_template.py
-src/stream_workflow_editor/static/.gitkeep
+src/stream_workflow_editor/static/index.html
+src/stream_workflow_editor/static/assets/index-CiDQUTao.css
+src/stream_workflow_editor/static/assets/index-g13_H-j6.js
+src/stream_workflow_editor/static/assets/index-g13_H-j6.js.map

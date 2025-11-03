@@ -1,7 +1,7 @@
 /**
  * 节点代码生成器（前端）
  */
-import { ParameterSchema, CreateNodeRequest } from '@/types/node'
+import { ParameterSchema } from '@/types/node'
 
 export const nodeGenerator = {
   generateNodeCode(request: {
@@ -75,7 +75,7 @@ export const nodeGenerator = {
     const code = `"""
 ${description}
 """
-from workflow_engine.core import Node, ParameterSchema, register_node
+from stream_workflow.core import Node, ParameterSchema, register_node
 
 @register_node('${nodeId}')
 class ${className}(Node):

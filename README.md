@@ -40,62 +40,106 @@ stream-workflow start   # 同时启动前后端
 
 ```
 stream-workflow-editor/
-├── src/               # Python 包源码
-│   └── stream_workflow_editor/
-│       ├── api/       # FastAPI 后端服务
-│       ├── static/    # 前端静态文件（构建后）
-│       └── ...
-├── frontend/          # React 前端应用（开发）
-├── backend/           # FastAPI 后端服务（开发，与 src/ 同步）
-└── docs/             # 项目文档
+├── src/                         # Python 包源码
+│   └── stream_workflow_editor/   # 包根目录（在这里开发后端）
+│       ├── api/                  # FastAPI 后端服务
+│       │   ├── routes/           # API 路由
+│       │   └── services/         # 业务逻辑
+│       ├── static/               # 前端静态文件（构建后，自动生成）
+│       ├── custom_nodes/         # 自定义节点
+│       ├── cli.py                # CLI 入口
+│       ├── server.py             # 服务器启动模块
+│       └── client.py             # 客户端启动模块
+├── frontend/                     # React 前端应用（在这里开发前端）
+│   ├── src/                      # React 源码
+│   ├── dist/                     # 构建产物（临时，自动生成）
+│   └── package.json
+└── docs/                         # 项目文档
 ```
 
 ## 快速开始（开发模式）
 
-### 前端开发
+### 开发环境设置
 
+1. **克隆项目**：
+```bash
+git clone https://github.com/cnwinds/stream-workflow-editor.git
+cd stream-workflow-editor
+```
+
+2. **安装 Python 依赖**（在项目根目录）：
+```bash
+pip install -e .
+```
+
+3. **安装前端依赖**：
 ```bash
 cd frontend
 npm install
+```
+
+### 前端开发
+
+在 `frontend/` 目录进行前端开发：
+
+```bash
+cd frontend
 npm run dev
 ```
 
-前端将在 http://localhost:3000 启动
+前端开发服务器将在 http://localhost:3000 启动
 
 ### 后端开发
 
-```bash
-cd backend
-pip install -r requirements.txt
-```
+后端源码在 `src/stream_workflow_editor/` 目录，直接在包目录开发。
 
 #### 启动方式
 
 **方式1: 使用 CLI 工具（推荐）**
 
 ```bash
-# 在当前目录启动（自动检测 custom_nodes 目录）
-python cli.py
+# 在项目根目录或任意工作目录
 
-# 指定工作目录
-python cli.py --work-dir /path/to/project
+# 生产模式（使用已编译的静态文件，前后端同端口 3010）
+stream-workflow start
+# 或只启动后端（也会服务静态文件）
+stream-workflow server
 
-# 直接指定自定义节点目录
-python cli.py --nodes-dir /path/to/custom/nodes
+# 开发模式（前后端分离，前端 3000 端口，后端 3010 端口）
+stream-workflow start --force-client
 
-# 开发模式（自动重载）
-python cli.py --reload
+# 仅启动前端开发服务器（需要后端已启动）
+stream-workflow client
 ```
 
-**方式2: 直接运行 main.py（向后兼容）**
+**方式2: 使用命令行参数**
 
 ```bash
-python -m api.main
+# 在当前目录启动（自动检测 custom_nodes 目录）
+stream-workflow server
+
+# 指定工作目录
+stream-workflow server --work-dir /path/to/project
+
+# 直接指定自定义节点目录
+stream-workflow server --nodes-dir /path/to/custom/nodes
+
+# 开发模式（自动重载）
+stream-workflow server --reload
+```
+
+**方式3: 直接运行 Python 模块（开发测试）**
+
+```bash
+# 在项目根目录
+python -m stream_workflow_editor.api.main
 ```
 
 后端将在 http://localhost:3010 启动（默认配置）
 
-更多启动选项和配置方式请参考 [backend/README.md](backend/README.md)
+**端口说明：**
+- **生产模式**（已编译静态文件）：前后端都在 `http://localhost:3010`，后端直接提供静态文件
+- **开发模式**（前端开发服务器）：前端在 `http://localhost:3000`，后端在 `http://localhost:3010`，前端通过代理访问后端 API
 
 ## 打包和发布
 
@@ -154,6 +198,14 @@ stream-workflow --help
 ## 开发计划
 
 详见 `.plan.md` 文件。
+
+## 更多文档
+
+- [开发指南](docs/DEVELOPMENT.md) - 详细的开发流程和目录结构说明
+- [架构文档](docs/ARCHITECTURE.md) - 项目架构和技术栈说明
+- [使用文档](docs/USAGE.md) - 使用说明和常见问题
+- [API 文档](docs/API.md) - API 接口文档
+- [日志系统](docs/LOGGING.md) - 日志配置和使用指南
 
 ## 许可证
 

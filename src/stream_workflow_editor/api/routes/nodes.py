@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel
 from ..services.workflow_service import workflow_service
+from ..logger import logger
 from ..services.custom_node_service import (
     create_custom_node,
     update_custom_node,
@@ -48,7 +49,7 @@ async def get_node_types():
         return [NodeType(**node_type) for node_type in node_types]
     except Exception as e:
         # 如果获取失败，返回默认节点类型
-        print(f"获取节点类型失败，使用默认类型: {e}")
+        logger.warning(f"获取节点类型失败，使用默认类型: {e}", exc_info=True)
         default_types = workflow_service._get_default_node_types()
         return [NodeType(**node_type) for node_type in default_types]
 
@@ -61,7 +62,7 @@ async def get_node_schema(node_type: str):
         schema = workflow_service.get_node_schema(node_type)
         return NodeSchema(**schema)
     except Exception as e:
-        print(f"获取节点 schema 失败: {e}")
+        logger.warning(f"获取节点 schema 失败: {e}", exc_info=True)
         return NodeSchema(
             INPUT_PARAMS={},
             OUTPUT_PARAMS={},
@@ -152,9 +153,7 @@ async def create_custom_node_endpoint(request: CreateNodeRequest):
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        print(f"创建自定义节点失败: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.error(f"创建自定义节点失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"创建节点失败: {str(e)}")
 
 
@@ -165,9 +164,7 @@ async def list_custom_nodes_endpoint():
         nodes = list_custom_nodes()
         return {"nodes": nodes}
     except Exception as e:
-        print(f"获取自定义节点列表失败: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.error(f"获取自定义节点列表失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"获取节点列表失败: {str(e)}")
 
 
@@ -182,9 +179,7 @@ async def get_custom_node_endpoint(node_id: str):
     except HTTPException:
         raise
     except Exception as e:
-        print(f"获取自定义节点信息失败: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.error(f"获取自定义节点信息失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"获取节点信息失败: {str(e)}")
 
 
@@ -197,9 +192,7 @@ async def update_custom_node_endpoint(node_id: str, request: UpdateNodeCodeReque
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
-        print(f"更新自定义节点失败: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.error(f"更新自定义节点失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"更新节点失败: {str(e)}")
 
 
@@ -214,9 +207,7 @@ async def delete_custom_node_endpoint(node_id: str):
     except HTTPException:
         raise
     except Exception as e:
-        print(f"删除自定义节点失败: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.error(f"删除自定义节点失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"删除节点失败: {str(e)}")
 
 
@@ -231,9 +222,7 @@ async def get_node_code_endpoint(node_id: str):
     except HTTPException:
         raise
     except Exception as e:
-        print(f"获取节点代码失败: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.error(f"获取节点代码失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"获取节点代码失败: {str(e)}")
 
 
@@ -282,10 +271,10 @@ async def update_custom_node_full_endpoint(node_id: str, request: CreateNodeRequ
         # 编辑模式下，优先使用用户提供的代码
         if request.pythonCode and request.pythonCode.strip():
             python_code = request.pythonCode
-            print(f"使用提供的Python代码，长度: {len(python_code)}")
+            logger.debug(f"使用提供的Python代码，长度: {len(python_code)}")
         else:
             # 如果没有提供代码，生成新代码
-            print("生成新的Python代码")
+            logger.debug("生成新的Python代码")
             python_code = generate_node_code(
                 node_id=request.nodeId,
                 name=request.name,
@@ -312,13 +301,11 @@ async def update_custom_node_full_endpoint(node_id: str, request: CreateNodeRequ
             python_code=python_code
         )
         
-        print(f"节点 {node_id} 更新成功，Python文件已保存")
+        logger.info(f"节点 {node_id} 更新成功，Python文件已保存")
         return {"message": "节点更新成功", "node": node_entry}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        print(f"更新自定义节点失败: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.error(f"更新自定义节点失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"更新节点失败: {str(e)}")
 

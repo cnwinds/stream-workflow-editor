@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 from typing import Optional
 import yaml
+from .logger import logger
 
 class Config:
     """全局配置管理器"""
@@ -79,7 +80,7 @@ class Config:
                 with open(config_file_path, 'r', encoding='utf-8') as f:
                     config_data = yaml.safe_load(f) or {}
             except Exception as e:
-                print(f"警告: 加载配置文件失败: {e}")
+                logger.warning(f"加载配置文件失败: {e}")
         
         # 4. 确定自定义节点目录（优先级：命令行 > 环境变量 > 配置文件 > 自动检测）
         nodes_dir_path = None
@@ -160,18 +161,18 @@ class Config:
         
         self._initialized = True
         
-        print(f"配置已初始化:")
-        print(f"  自定义节点目录: {self._custom_nodes_dir}")
+        logger.info("配置已初始化:")
+        logger.info(f"  自定义节点目录: {self._custom_nodes_dir}")
         if project_root_path:
-            print(f"  项目根目录: {self._project_root_dir}")
-        print(f"  服务地址: {self._host}:{self._port}")
+            logger.info(f"  项目根目录: {self._project_root_dir}")
+        logger.info(f"  服务地址: {self._host}:{self._port}")
     
     def _add_to_python_path(self, nodes_dir: Path):
         """将自定义节点目录添加到 Python 路径以便导入"""
         nodes_dir_str = str(nodes_dir)
         if nodes_dir_str not in sys.path:
             sys.path.insert(0, nodes_dir_str)
-            print(f"  已添加 Python 路径: {nodes_dir_str}")
+            logger.debug(f"已添加 Python 路径: {nodes_dir_str}")
     
     def get_custom_nodes_dir(self) -> Path:
         """获取自定义节点目录路径"""

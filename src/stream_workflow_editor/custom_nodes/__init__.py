@@ -9,9 +9,17 @@ import inspect
 import importlib.util
 from pathlib import Path
 
+# 导入日志记录器
+try:
+    from stream_workflow_editor.api.logger import logger
+except ImportError:
+    # 如果无法导入，创建一个简单的 logger
+    import logging
+    logger = logging.getLogger(__name__)
+
 # 确保能导入 Node 基类
 try:
-    from workflow_engine.core.node import Node
+    from stream_workflow.core.node import Node
 except ImportError:
     Node = None
 
@@ -30,7 +38,7 @@ def load_custom_nodes(custom_nodes_dir: Path = None):
     _loaded_nodes = {}
     
     if Node is None:
-        print("警告: workflow_engine 未安装，无法加载自定义节点")
+        logger.warning("stream_workflow 未安装，无法加载自定义节点")
         return _loaded_nodes
     
     # 获取自定义节点目录
@@ -43,7 +51,7 @@ def load_custom_nodes(custom_nodes_dir: Path = None):
             custom_nodes_dir = Path(__file__).parent
     
     if not custom_nodes_dir.exists():
-        print(f"警告: 自定义节点目录不存在: {custom_nodes_dir}")
+        logger.warning(f"自定义节点目录不存在: {custom_nodes_dir}")
         return _loaded_nodes
     
     # 扫描目录中的所有 .py 文件
@@ -87,9 +95,7 @@ def load_custom_nodes(custom_nodes_dir: Path = None):
                         _loaded_nodes[node_id] = obj
         
         except Exception as e:
-            print(f"加载节点文件 {py_file.name} 失败: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.error(f"加载节点文件 {py_file.name} 失败: {e}", exc_info=True)
     
     return _loaded_nodes
 

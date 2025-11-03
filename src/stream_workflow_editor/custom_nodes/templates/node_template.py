@@ -5,7 +5,7 @@ Python节点代码模板
 NODE_TEMPLATE = '''"""
 {{description}}
 """
-from workflow_engine.core import Node, ParameterSchema, register_node
+from stream_workflow.core import Node, ParameterSchema, register_node
 
 @register_node('{{node_id}}')
 class {{class_name}}(Node):

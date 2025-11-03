@@ -11,14 +11,14 @@ import {
   CopyOutlined,
 } from '@ant-design/icons'
 import { useWorkflowStore } from '@/stores/workflowStore'
-import { workflowApi, validationApi, fileApi } from '@/services/api'
+import { validationApi, fileApi } from '@/services/api'
 import { YamlService } from '@/services/yamlService'
 import NodeCreatorModal from '@/components/NodeCreator'
 import FileManager from '@/components/FileManager'
 import './Toolbar.css'
 
 const Toolbar: React.FC = () => {
-  const { nodes, edges, loadWorkflow, exportWorkflow, currentFileName, setCurrentFileName } = useWorkflowStore()
+  const { loadWorkflow, exportWorkflow, currentFileName, setCurrentFileName } = useWorkflowStore()
   const [loading, setLoading] = useState(false)
   const [nodeCreatorVisible, setNodeCreatorVisible] = useState(false)
   const [fileManagerVisible, setFileManagerVisible] = useState(false)

@@ -23,24 +23,51 @@ def build_frontend():
     print("正在构建前端...")
     try:
         import os
+        import sys
+        import shutil
+        
         original_dir = os.getcwd()
         os.chdir(frontend_dir)
+        
+        # 查找 npm 命令（Windows 兼容）
+        npm_cmd = None
+        if sys.platform == "win32":
+            # Windows 上尝试多个可能的 npm 命令
+            for cmd in ["npm.cmd", "npm"]:
+                npm_path = shutil.which(cmd)
+                if npm_path:
+                    npm_cmd = cmd
+                    break
+        else:
+            npm_path = shutil.which("npm")
+            if npm_path:
+                npm_cmd = "npm"
+        
+        if not npm_cmd:
+            print("错误: 未找到 npm 命令。请确保已安装 Node.js 并将其添加到 PATH 环境变量中。")
+            print(f"提示: 当前 PATH: {os.environ.get('PATH', '未设置')}")
+            os.chdir(original_dir)
+            return False
+        
+        print(f"使用 npm: {npm_cmd}")
         
         # 检查 node_modules 是否存在
         if not (frontend_dir / "node_modules").exists():
             print("未找到 node_modules，正在安装依赖...")
-            subprocess.run(["npm", "install"], check=True)
+            subprocess.run([npm_cmd, "install"], check=True, shell=sys.platform == "win32")
         
         # 构建前端
-        subprocess.run(["npm", "run", "build"], check=True)
+        subprocess.run([npm_cmd, "run", "build"], check=True, shell=sys.platform == "win32")
         
         os.chdir(original_dir)
         
     except subprocess.CalledProcessError as e:
         print(f"错误: 构建前端失败: {e}")
+        os.chdir(original_dir)
         return False
     except FileNotFoundError:
         print("错误: 未找到 npm 命令。请确保已安装 Node.js。")
+        os.chdir(original_dir)
         return False
     
     # 复制构建产物到包目录

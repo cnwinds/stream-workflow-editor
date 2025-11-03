@@ -4,7 +4,8 @@
       "id": "TestNode1",
       "pythonFile": "TestNode1.py",
       "createdAt": "2025-11-02T08:09:17.030767Z",
-      "updatedAt": "2025-11-02T09:54:16.549028Z"
+      "updatedAt": "2025-11-02T09:54:16.549028Z",
+      "type": "test1_node"
     }
   ]
 }

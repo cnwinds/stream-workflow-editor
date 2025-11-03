@@ -1,7 +1,7 @@
 """
 
 """
-from workflow_engine.core import Node, ParameterSchema, register_node
+from stream_workflow.core import Node, ParameterSchema, register_node
 
 @register_node('TestNode1')
 class TestNode1Node(Node):

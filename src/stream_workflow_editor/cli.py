@@ -134,23 +134,47 @@ def client(port):
     is_flag=True,
     help='不启动前端开发服务器，仅启动后端'
 )
-def start(work_dir, nodes_dir, config_file, project_root, host, port, reload, client_port, no_client):
+@click.option(
+    '--force-client',
+    is_flag=True,
+    help='强制启动前端开发服务器（即使已编译静态文件）'
+)
+def start(work_dir, nodes_dir, config_file, project_root, host, port, reload, client_port, no_client, force_client):
     """
     同时启动服务器和客户端（开发模式）
     
     启动后端 API 服务和前端开发服务器。
     
+    如果已编译静态文件，将自动使用静态文件（生产模式），不会启动开发服务器。
+    
     示例:
         \b
-        # 同时启动前后端
+        # 同时启动前后端（自动检测静态文件）
         stream-workflow start
         
         \b
         # 仅启动后端
         stream-workflow start --no-client
+        
+        \b
+        # 强制启动开发服务器（忽略静态文件）
+        stream-workflow start --force-client
     """
+    # 检查是否已编译静态文件
+    from pathlib import Path
+    package_dir = Path(__file__).parent
+    static_dir = package_dir / "static"
+    has_static_files = static_dir.exists() and (static_dir / "index.html").exists()
+    
     if no_client:
         # 仅启动服务器
+        start_server(work_dir, nodes_dir, config_file, project_root, host, port, reload)
+    elif has_static_files and not force_client:
+        # 已编译静态文件，只启动后端（后端会自动服务静态文件）
+        click.echo("检测到已编译的静态文件，将使用生产模式（无需启动开发服务器）")
+        click.echo(f"静态文件目录: {static_dir}")
+        click.echo(f"访问地址: http://{host or '0.0.0.0'}:{port or 3010}")
+        click.echo("提示: 如需启动开发服务器，请使用 --force-client 参数")
         start_server(work_dir, nodes_dir, config_file, project_root, host, port, reload)
     else:
         # 在后台线程启动客户端

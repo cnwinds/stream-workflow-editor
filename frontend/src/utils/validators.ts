@@ -50,10 +50,10 @@ export class WorkflowValidator {
     // 验证连接
     const validNodeIds = new Set(config.workflow.nodes?.map((n) => n.id) || [])
     config.workflow.connections?.forEach((conn) => {
-      if (!validNodeIds.has(conn.source)) {
+      if (conn.source && !validNodeIds.has(conn.source)) {
         errors.push({ message: `连接源节点 "${conn.source}" 不存在` })
       }
-      if (!validNodeIds.has(conn.target)) {
+      if (conn.target && !validNodeIds.has(conn.target)) {
         errors.push({ message: `连接目标节点 "${conn.target}" 不存在` })
       }
     })

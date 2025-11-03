@@ -97,15 +97,25 @@ API 调用
 #### 目录结构
 
 ```
-backend/
+src/stream_workflow_editor/
 ├── api/
 │   ├── main.py           # FastAPI 应用入口
-│   └── routes/           # API 路由
-│       ├── workflow.py   # 工作流管理
-│       ├── validate.py   # 配置验证
-│       ├── execute.py    # 执行控制
-│       └── nodes.py      # 节点信息
-└── requirements.txt
+│   ├── config.py         # 配置管理
+│   ├── routes/           # API 路由
+│   │   ├── workflow.py   # 工作流管理
+│   │   ├── validate.py   # 配置验证
+│   │   ├── execute.py    # 执行控制
+│   │   ├── nodes.py      # 节点信息
+│   │   └── files.py      # 文件管理
+│   └── services/         # 业务逻辑
+│       ├── workflow_service.py
+│       ├── node_generator.py
+│       └── custom_node_service.py
+├── custom_nodes/         # 自定义节点
+├── cli.py                # CLI 入口
+├── server.py             # 服务器启动
+├── client.py             # 客户端启动
+└── static/               # 前端静态文件（构建后）
 ```
 
 #### API 设计
@@ -213,9 +223,14 @@ npm run dev  # http://localhost:3000
 
 **后端**:
 ```bash
-cd backend
-pip install -r requirements.txt
-python -m api.main  # http://localhost:8000
+# 在项目根目录安装包（开发模式）
+pip install -e .
+
+# 启动后端服务器
+stream-workflow server  # http://localhost:3010
+
+# 或直接运行模块
+python -m stream_workflow_editor.api.main
 ```
 
 ### 生产环境
@@ -229,8 +244,11 @@ npm run build
 
 **后端部署**:
 ```bash
-# 使用 uvicorn 或 gunicorn
-uvicorn api.main:app --host 0.0.0.0 --port 8000
+# 安装包后，使用命令行工具启动
+stream-workflow-server --host 0.0.0.0 --port 3010
+
+# 或使用 uvicorn
+uvicorn stream_workflow_editor.api.main:app --host 0.0.0.0 --port 3010
 ```
 
 **Nginx 配置**:
@@ -247,7 +265,7 @@ server {
 
     # 后端 API
     location /api {
-        proxy_pass http://127.0.0.1:8000;
+        proxy_pass http://127.0.0.1:3010;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
     }

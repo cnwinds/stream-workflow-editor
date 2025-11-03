@@ -4,17 +4,18 @@ stream-workflow 引擎服务封装
 import sys
 from typing import Dict, Any, Optional, List, Tuple
 import asyncio
+from ..logger import logger
 
 try:
-    from workflow_engine.core import WorkflowEngine
-    from workflow_engine.core.exceptions import (
+    from stream_workflow.core import WorkflowEngine
+    from stream_workflow.core.exceptions import (
         ConfigurationError,
         NodeExecutionError,
         WorkflowException,
     )
 except ImportError as e:
-    print(f"警告: 无法导入 stream-workflow 引擎: {e}")
-    print("请确保已安装: pip install git+https://github.com/cnwinds/stream-workflow.git@main")
+    logger.warning(f"无法导入 stream-workflow 引擎: {e}")
+    logger.warning("请确保已安装: pip install git+https://github.com/cnwinds/stream-workflow.git@main")
     WorkflowEngine = None
     ConfigurationError = Exception
     NodeExecutionError = Exception
@@ -236,7 +237,7 @@ class WorkflowEngineService:
             return True
 
         except Exception as e:
-            print(f"停止工作流失败: {e}")
+            logger.error(f"停止工作流失败: {e}", exc_info=True)
             return False
 
     def get_execution_status(self, execution_id: str) -> Optional[Dict[str, Any]]:
@@ -252,8 +253,8 @@ class WorkflowEngineService:
             # 方法1: 尝试通过 inspect 扫描 nodes 模块
             try:
                 import inspect
-                from workflow_engine import nodes
-                from workflow_engine.core.node import Node
+                from stream_workflow import nodes
+                from stream_workflow.core.node import Node
                 
                 node_types = []
                 
@@ -289,13 +290,9 @@ class WorkflowEngineService:
                 if system_node_types:
                     pass  # 继续处理自定义节点
             except Exception as e:
-                print(f"无法通过 inspect 扫描节点类型: {e}")
-                import traceback
-                traceback.print_exc()
+                logger.debug(f"无法通过 inspect 扫描节点类型: {e}", exc_info=True)
         except Exception as e:
-            print(f"获取系统节点类型失败: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.warning(f"获取系统节点类型失败: {e}", exc_info=True)
             # 使用默认节点类型
             system_node_types = self._get_default_node_types()
         
@@ -309,7 +306,7 @@ class WorkflowEngineService:
                 node_id = node.get("id")
                 # 跳过没有 id 的节点
                 if not node_id:
-                    print(f"警告: 跳过没有 id 的自定义节点: {node}")
+                    logger.warning(f"跳过没有 id 的自定义节点: {node}")
                     continue
                     
                 custom_node_types.append({
@@ -321,9 +318,7 @@ class WorkflowEngineService:
                     "color": node.get("color", "#1890ff"),
                 })
         except Exception as e:
-            print(f"加载自定义节点失败: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.error(f"加载自定义节点失败: {e}", exc_info=True)
         
         # 合并系统节点和自定义节点
         all_node_types = system_node_types + custom_node_types
@@ -343,13 +338,13 @@ class WorkflowEngineService:
                     "CONFIG_SCHEMA": custom_metadata.get("configSchema", {}),
                 }
         except Exception as e:
-            print(f"从自定义节点获取schema失败 ({node_type}): {e}")
+            logger.debug(f"从自定义节点获取schema失败 ({node_type}): {e}", exc_info=True)
         
         # 尝试从系统节点获取
         try:
             # 方法1: 尝试直接导入节点类
             try:
-                from workflow_engine.core import ParameterSchema
+                from stream_workflow.core import ParameterSchema
                 
                 # 尝试从 nodes 模块导入节点类
                 # 节点类型格式通常是 "xxx_node"，对应的类名可能是 "XxxNode"
@@ -358,8 +353,8 @@ class WorkflowEngineService:
                 # 使用 inspect 模块扫描 nodes 模块
                 try:
                     import inspect
-                    from workflow_engine import nodes
-                    from workflow_engine.core.node import Node
+                    from stream_workflow import nodes
+                    from stream_workflow.core.node import Node
                     
                     # 扫描 nodes 模块中的所有节点类
                     for name, obj in inspect.getmembers(nodes, inspect.isclass):
@@ -376,9 +371,7 @@ class WorkflowEngineService:
                                 break
                 
                 except Exception as e:
-                    print(f"无法从 nodes 模块导入节点类: {e}")
-                    import traceback
-                    traceback.print_exc()
+                    logger.debug(f"无法从 nodes 模块导入节点类: {e}", exc_info=True)
                 
                 if node_class:
                     # 解析 INPUT_PARAMS
@@ -435,9 +428,7 @@ class WorkflowEngineService:
                     }
                     return schema
             except Exception as e:
-                print(f"无法导入节点类: {e}")
-                import traceback
-                traceback.print_exc()
+                logger.debug(f"无法导入节点类: {e}", exc_info=True)
             
             
             # 如果都无法获取，返回空 schema
@@ -448,9 +439,7 @@ class WorkflowEngineService:
             }
 
         except Exception as e:
-            print(f"获取节点 schema 失败: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.error(f"获取节点 schema 失败: {e}", exc_info=True)
             return {
                 "INPUT_PARAMS": {},
                 "OUTPUT_PARAMS": {},

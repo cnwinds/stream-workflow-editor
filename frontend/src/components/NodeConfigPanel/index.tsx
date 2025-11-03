@@ -98,7 +98,7 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ nodeId }) => {
     }
   }, [node, form])
 
-  const handleFormChange = (changedValues: any, allValues: any) => {
+  const handleFormChange = (_changedValues: any, allValues: any) => {
     if (node) {
       // 解析 config JSON
       let config = {}

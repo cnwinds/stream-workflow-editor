@@ -56,7 +56,7 @@ export interface CreateNodeRequest {
 export interface CategoryTreeNode {
   key: string
   title: string
-  children?: CategoryTreeNode[]
+  children?: Record<string, CategoryTreeNode>
   nodes?: NodeType[]
   isLeaf?: boolean
 }

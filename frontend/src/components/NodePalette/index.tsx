@@ -3,14 +3,12 @@ import { Card, Input, Empty, message, Collapse } from 'antd'
 import { SearchOutlined } from '@ant-design/icons'
 import { nodeApi } from '@/services/api'
 import { NodeType, CategoryTreeNode } from '@/types/node'
-import { useWorkflowStore } from '@/stores/workflowStore'
 import './NodePalette.css'
 
 const NodePalette: React.FC = () => {
   const [nodeTypes, setNodeTypes] = useState<NodeType[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [loading, setLoading] = useState(true)
-  const { addNode } = useWorkflowStore()
 
   useEffect(() => {
     loadNodeTypes()
@@ -113,7 +111,7 @@ const NodePalette: React.FC = () => {
           current[part] = {
             key: categoryParts.slice(0, index + 1).join('.'),
             title: part,
-            children: {},
+            children: {} as Record<string, CategoryTreeNode>,
             nodes: [],
           }
         }
@@ -127,7 +125,7 @@ const NodePalette: React.FC = () => {
         } else {
           // 中间层，继续遍历
           if (!current[part].children) {
-            current[part].children = {}
+            current[part].children = {} as Record<string, CategoryTreeNode>
           }
           current = current[part].children!
         }

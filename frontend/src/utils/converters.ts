@@ -13,12 +13,14 @@ export class WorkflowConverter {
     edges: Edge[],
     workflowName: string = '未命名工作流'
   ): WorkflowConfig {
-    const workflowNodes: WorkflowNode[] = nodes.map((node) => ({
-      id: node.id,
-      type: node.type,
-      position: node.position,
-      data: node.data,
-    }))
+    const workflowNodes: WorkflowNode[] = nodes
+      .filter((node) => node.type) // 过滤掉没有类型的节点
+      .map((node) => ({
+        id: node.id,
+        type: node.type!,
+        position: node.position,
+        data: node.data,
+      }))
 
     const workflowConnections: WorkflowConnection[] = edges.map((edge) => ({
       id: edge.id,
