@@ -1,0 +1,3 @@
+[console_scripts]
+stream-workflow = stream_workflow_editor.cli:main
+stream-workflow-server = stream_workflow_editor.server:cli

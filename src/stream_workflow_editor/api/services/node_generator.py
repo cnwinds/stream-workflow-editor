@@ -7,7 +7,7 @@ from typing import Dict, Any, List
 from jinja2 import Template
 from pathlib import Path
 
-from api.config import config
+from ..config import config
 
 
 def get_template_file() -> Path:

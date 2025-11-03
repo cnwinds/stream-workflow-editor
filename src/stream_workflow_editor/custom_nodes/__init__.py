@@ -36,7 +36,7 @@ def load_custom_nodes(custom_nodes_dir: Path = None):
     # 获取自定义节点目录
     if custom_nodes_dir is None:
         try:
-            from api.config import config
+            from stream_workflow_editor.api.config import config
             custom_nodes_dir = config.get_custom_nodes_dir()
         except Exception:
             # 如果配置未初始化，尝试使用当前文件所在目录
@@ -78,8 +78,11 @@ def load_custom_nodes(custom_nodes_dir: Path = None):
                         # 获取节点ID（从装饰器或类属性）
                         node_id = getattr(obj, '__node_id__', None)
                         if not node_id:
-                            # 尝试从类名推断
+                            # 尝试从类名推断（与系统节点规则保持一致）
                             node_id = name.lower().replace('node', '').replace('_', '_')
+                            # 如果节点ID不是以 _node 结尾，自动添加（与系统节点保持一致）
+                            if node_id and not node_id.endswith('_node'):
+                                node_id = f"{node_id}_node"
                         
                         _loaded_nodes[node_id] = obj
         
@@ -108,7 +111,7 @@ def reload_custom_nodes(custom_nodes_dir: Path = None):
 # 启动时自动加载（如果配置已初始化）
 if Node is not None:
     try:
-        from api.config import config
+        from stream_workflow_editor.api.config import config
         if config.is_initialized():
             load_custom_nodes()
     except Exception:

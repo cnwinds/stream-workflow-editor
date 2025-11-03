@@ -1,0 +1,69 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "stream-workflow-editor"
+version = "0.1.0"
+description = "流式工作流可视化编辑器 - 为 stream-workflow 提供可视化编辑界面"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+authors = [
+    {name = "Stream Workflow Team"}
+]
+keywords = ["workflow", "visualization", "editor", "stream-workflow"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+dependencies = [
+    "fastapi>=0.104.1",
+    "uvicorn[standard]>=0.24.0",
+    "pydantic>=2.5.0",
+    "python-multipart>=0.0.6",
+    "pyyaml>=6.0.1",
+    "jinja2>=3.1.2",
+    "click>=8.1.7",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/cnwinds/stream-workflow-editor"
+Documentation = "https://github.com/cnwinds/stream-workflow-editor"
+Repository = "https://github.com/cnwinds/stream-workflow-editor"
+Issues = "https://github.com/cnwinds/stream-workflow-editor/issues"
+
+[project.scripts]
+stream-workflow-server = "stream_workflow_editor.server:cli"
+stream-workflow = "stream_workflow_editor.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+stream_workflow_editor = [
+    "config.yaml",
+    "static/**/*",
+    "custom_nodes/templates/**/*",
+    "custom_nodes/registry.json",
+]
+

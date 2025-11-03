@@ -1,0 +1,18 @@
+# 包含必要的非 Python 文件
+
+# 配置文件
+include src/stream_workflow_editor/config.yaml
+
+# 前端静态文件（构建后）
+recursive-include src/stream_workflow_editor/static *
+
+# 自定义节点模板
+recursive-include src/stream_workflow_editor/custom_nodes/templates *
+
+# 注册表文件（如果需要）
+include src/stream_workflow_editor/custom_nodes/registry.json
+
+# README 文件
+include README.md
+
+

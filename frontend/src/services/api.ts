@@ -26,7 +26,7 @@ api.interceptors.response.use(
         message.error(`请求失败: ${error.response.data?.detail || error.message}`)
       }
     } else if (error.request) {
-      message.error('无法连接到后端服务，请确保后端运行在 http://localhost:8000')
+      message.error('无法连接到后端服务，请确保后端运行在 http://localhost:3010')
       console.error('后端连接失败:', error)
     } else {
       message.error(`请求错误: ${error.message}`)

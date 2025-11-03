@@ -49,14 +49,26 @@
   stroke-width: 2;
 }
 
+/* 选中的连线 - 最高优先级，最后渲染 */
+.react-flow__edge.selected {
+  z-index: 1000 !important;
+}
+
 .react-flow__edge.selected .react-flow__edge-path {
-  stroke: #1890ff;
-  stroke-width: 3;
+  stroke: #1890ff !important;
+  stroke-width: 3 !important;
+  z-index: 1000 !important;
+}
+
+/* 鼠标悬停的连线 - 中等优先级 */
+.react-flow__edge:hover {
+  z-index: 500 !important;
 }
 
 .react-flow__edge:hover .react-flow__edge-path {
-  stroke: #52c41a;
-  stroke-width: 2.5;
+  stroke: #52c41a !important;
+  stroke-width: 2.5 !important;
+  z-index: 500 !important;
 }
 
 /* 无效连接（参数不匹配）的样式 */

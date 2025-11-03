@@ -1,3 +1,38 @@
+Metadata-Version: 2.4
+Name: stream-workflow-editor
+Version: 0.1.0
+Summary: 流式工作流可视化编辑器 - 为 stream-workflow 提供可视化编辑界面
+Author: Stream Workflow Team
+License: MIT
+Project-URL: Homepage, https://github.com/cnwinds/stream-workflow-editor
+Project-URL: Documentation, https://github.com/cnwinds/stream-workflow-editor
+Project-URL: Repository, https://github.com/cnwinds/stream-workflow-editor
+Project-URL: Issues, https://github.com/cnwinds/stream-workflow-editor/issues
+Keywords: workflow,visualization,editor,stream-workflow
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+Requires-Dist: fastapi>=0.104.1
+Requires-Dist: uvicorn[standard]>=0.24.0
+Requires-Dist: pydantic>=2.5.0
+Requires-Dist: python-multipart>=0.0.6
+Requires-Dist: pyyaml>=6.0.1
+Requires-Dist: jinja2>=3.1.2
+Requires-Dist: click>=8.1.7
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: pytest-asyncio>=0.21.0; extra == "dev"
+Requires-Dist: black>=23.0.0; extra == "dev"
+Requires-Dist: ruff>=0.1.0; extra == "dev"
+
 # 流式工作流可视化编辑器
 
 为 [stream-workflow](https://github.com/cnwinds/stream-workflow) Python 工作流引擎构建的可视化编辑器。
@@ -30,7 +65,7 @@ stream-workflow client  # 启动前端开发服务器
 stream-workflow start   # 同时启动前后端
 ```
 
-安装后，服务器将在 http://localhost:3010 启动，如果前端已构建，可直接访问浏览器使用。
+安装后，服务器将在 http://localhost:8000 启动，如果前端已构建，可直接访问浏览器使用。
 
 ### 方式2: 从源码开发
 
@@ -93,7 +128,7 @@ python cli.py --reload
 python -m api.main
 ```
 
-后端将在 http://localhost:3010 启动（默认配置）
+后端将在 http://localhost:8000 启动（默认配置）
 
 更多启动选项和配置方式请参考 [backend/README.md](backend/README.md)
 

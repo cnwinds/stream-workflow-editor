@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse
 import uvicorn
 
 from api.routes import workflow, validate, execute, nodes, files
+from api.config import config
 
 app = FastAPI(
     title="Stream Workflow API",
@@ -39,10 +40,31 @@ async def root():
 
 @app.get("/api/health")
 async def health():
-    return {"status": "ok"}
+    """健康检查端点"""
+    health_info = {
+        "status": "ok",
+        "custom_nodes_dir": None,
+    }
+    
+    try:
+        if config.is_initialized():
+            health_info["custom_nodes_dir"] = str(config.get_custom_nodes_dir())
+    except Exception:
+        pass
+    
+    return health_info
 
 
 if __name__ == "__main__":
+    # 如果直接运行 main.py，使用默认配置初始化
+    if not config.is_initialized():
+        config.initialize()
+    
     import uvicorn
-    uvicorn.run("api.main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run(
+        "api.main:app",
+        host=config.get_host(),
+        port=config.get_port(),
+        reload=True
+    )
 

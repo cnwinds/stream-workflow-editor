@@ -3,7 +3,7 @@
 """
 from workflow_engine.core import Node, ParameterSchema, register_node
 
-@register_node('test_node1')
+@register_node('TestNode1')
 class TestNode1Node(Node):
     """"""
     

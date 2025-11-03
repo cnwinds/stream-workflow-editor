@@ -1,0 +1,17 @@
+# Stream Workflow 服务器配置文件
+# 配置优先级：命令行参数 > 环境变量 > 配置文件 > 自动检测
+
+# 自定义节点目录（绝对路径或相对于配置文件的路径）
+custom_nodes_dir: custom_nodes
+
+# 项目根目录（可选，用于导入项目模块，绝对路径或相对于配置文件的路径）
+# 如果节点需要导入项目的其他模块，需要配置此目录
+# project_root_dir: .
+
+# 服务配置
+host: 0.0.0.0
+port: 3010
+
+# 其他配置（可选）
+# log_level: info
+# reload: false
