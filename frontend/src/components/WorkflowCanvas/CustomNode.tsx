@@ -34,6 +34,9 @@ const CustomNode: React.FC<NodeProps<CustomNodeData>> = ({ data, selected, id })
   
   // 加载节点 schema
   useEffect(() => {
+    // 使用 ref 标记，避免重复调用
+    let cancelled = false
+
     const loadNodeSchema = async () => {
       // 如果已经有 inputParams 和 outputParams，不需要重新加载
       if (data.inputParams && Object.keys(data.inputParams).length > 0 && 
@@ -44,6 +47,8 @@ const CustomNode: React.FC<NodeProps<CustomNodeData>> = ({ data, selected, id })
       if (data.type) {
         try {
           const schema = await nodeApi.getNodeSchema(data.type)
+          if (cancelled) return
+
           const loadedInputParams = schema.INPUT_PARAMS || {}
           const loadedOutputParams = schema.OUTPUT_PARAMS || {}
           
@@ -51,17 +56,33 @@ const CustomNode: React.FC<NodeProps<CustomNodeData>> = ({ data, selected, id })
           setOutputParams(loadedOutputParams)
           
           // 同步更新 store 中的节点数据，以便验证逻辑可以访问
-          updateNodeData(id, {
-            inputParams: loadedInputParams,
-            outputParams: loadedOutputParams,
-          })
+          // 只在 schema 确实发生变化时才更新，避免循环
+          const currentInputParams = data.inputParams || {}
+          const currentOutputParams = data.outputParams || {}
+          
+          const inputParamsChanged = JSON.stringify(loadedInputParams) !== JSON.stringify(currentInputParams)
+          const outputParamsChanged = JSON.stringify(loadedOutputParams) !== JSON.stringify(currentOutputParams)
+          
+          if (inputParamsChanged || outputParamsChanged) {
+            updateNodeData(id, {
+              inputParams: loadedInputParams,
+              outputParams: loadedOutputParams,
+            })
+          }
         } catch (error) {
-          console.error(`加载节点 ${data.type} 的 schema 失败:`, error)
+          if (!cancelled) {
+            console.error(`加载节点 ${data.type} 的 schema 失败:`, error)
+          }
         }
       }
     }
+    
     loadNodeSchema()
-  }, [data.type, data.inputParams, data.outputParams, id, updateNodeData])
+
+    return () => {
+      cancelled = true
+    }
+  }, [data.type, id]) // 只依赖 type 和 id，不依赖 inputParams/outputParams 以避免循环
 
   // 使用传入的 schema 或加载的 schema
   const finalInputParams = data.inputParams || inputParams

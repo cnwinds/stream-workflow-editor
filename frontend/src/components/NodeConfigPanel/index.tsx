@@ -23,18 +23,15 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ nodeId }) => {
   const [instanceCount, setInstanceCount] = useState(0)
 
   const node = nodes.find((n) => n.id === nodeId)
+  const nodeType = node?.data?.type || node?.type
 
   // 检查节点是否为自定义节点，并统计实例数量
   useEffect(() => {
-    const checkIsCustomNode = async () => {
-      if (!node) {
-        setIsCustomNode(false)
-        setInstanceCount(0)
-        return
-      }
+    // 使用 ref 标记，避免重复调用
+    let cancelled = false
 
-      const nodeType = node.data.type || node.type
-      if (!nodeType) {
+    const checkIsCustomNode = async () => {
+      if (!nodeId || !nodeType) {
         setIsCustomNode(false)
         setInstanceCount(0)
         return
@@ -43,26 +40,39 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ nodeId }) => {
       try {
         // 尝试获取自定义节点列表
         const customNodesResponse = await nodeApi.getCustomNodes()
+        if (cancelled) return
+        
         const customNodes = customNodesResponse.nodes || []
         const isCustom = customNodes.some((n: any) => n.id === nodeType)
         setIsCustomNode(isCustom)
         
-        // 统计使用该节点类型的实例数量
+        // 统计使用该节点类型的实例数量 - 从 store 获取最新值，而不是依赖 props
         if (isCustom) {
-          const count = nodes.filter((n) => (n.data?.type || n.type) === nodeType).length
-          setInstanceCount(count)
+          const currentNodes = useWorkflowStore.getState().nodes
+          const count = currentNodes.filter((n) => (n.data?.type || n.type) === nodeType).length
+          if (!cancelled) {
+            setInstanceCount(count)
+          }
         } else {
-          setInstanceCount(0)
+          if (!cancelled) {
+            setInstanceCount(0)
+          }
         }
       } catch (error) {
         // 如果获取失败，假设不是自定义节点
-        setIsCustomNode(false)
-        setInstanceCount(0)
+        if (!cancelled) {
+          setIsCustomNode(false)
+          setInstanceCount(0)
+        }
       }
     }
 
     checkIsCustomNode()
-  }, [node, nodes])
+
+    return () => {
+      cancelled = true
+    }
+  }, [nodeId, nodeType]) // 只依赖 nodeId 和 nodeType，不依赖整个 nodes 数组
 
   useEffect(() => {
     if (node) {
