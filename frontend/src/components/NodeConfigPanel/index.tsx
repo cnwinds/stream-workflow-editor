@@ -1,10 +1,12 @@
-import React, { useEffect, useState } from 'react'
-import { Card, Form, Input, Button, Empty, Tabs, message, Typography } from 'antd'
+import React, { useEffect, useState, useMemo } from 'react'
+import { Card, Form, Input, Button, Empty, Tabs, message, Typography, Descriptions, Tag, Alert } from 'antd'
 import { useWorkflowStore } from '@/stores/workflowStore'
 import { nodeApi } from '@/services/api'
 import Editor from '@monaco-editor/react'
 import { YamlService } from '@/services/yamlService'
 import NodeCreatorModal from '@/components/NodeCreator'
+import { WorkflowValidator } from '@/utils/validators'
+import { Edge } from 'reactflow'
 import './NodeConfigPanel.css'
 
 const { TextArea } = Input
@@ -12,10 +14,11 @@ const { Text } = Typography
 
 interface NodeConfigPanelProps {
   nodeId: string | null
+  edgeId?: string | null
 }
 
-const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ nodeId }) => {
-  const { nodes, updateNodeData } = useWorkflowStore()
+const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ nodeId, edgeId }) => {
+  const { nodes, edges, updateNodeData } = useWorkflowStore()
   const [form] = Form.useForm()
   const [yamlContent, setYamlContent] = useState('')
   const [isCustomNode, setIsCustomNode] = useState(false)
@@ -24,6 +27,77 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ nodeId }) => {
 
   const node = nodes.find((n) => n.id === nodeId)
   const nodeType = node?.data?.type || node?.type
+  const edge = edgeId ? edges.find((e) => e.id === edgeId) : null
+
+  // 计算连接线的详细信息
+  const connectionInfo = useMemo(() => {
+    if (!edge) return null
+
+    const sourceNode = nodes.find((n) => n.id === edge.source)
+    const targetNode = nodes.find((n) => n.id === edge.target)
+
+    if (!sourceNode || !targetNode) return null
+
+    const sourceHandle = edge.sourceHandle || 'output'
+    const targetHandle = edge.targetHandle || 'input'
+
+    const sourceOutputParams = sourceNode.data?.outputParams || {}
+    const targetInputParams = targetNode.data?.inputParams || {}
+
+    const sourceParam = sourceOutputParams[sourceHandle]
+    const targetParam = targetInputParams[targetHandle]
+
+    const isValid = WorkflowValidator.validateConnection(edge, nodes)
+
+    // 获取详细的验证错误信息
+    let validationErrors: string[] = []
+    if (!isValid) {
+      if (!sourceParam) {
+        validationErrors.push(`源节点 "${sourceNode.data?.label || sourceNode.id}" 的输出端口 "${sourceHandle}" 不存在`)
+      } else if (!targetParam) {
+        validationErrors.push(`目标节点 "${targetNode.data?.label || targetNode.id}" 的输入端口 "${targetHandle}" 不存在`)
+      } else {
+        const sourceSchema = sourceParam.schema || {}
+        const targetSchema = targetParam.schema || {}
+        const sourceSchemaKeys = Object.keys(sourceSchema)
+        const targetSchemaKeys = Object.keys(targetSchema)
+
+        if (sourceSchemaKeys.length === 0 && targetSchemaKeys.length > 0) {
+          validationErrors.push('源端口 schema 为空，但目标端口需要字段')
+        } else if (targetSchemaKeys.length === 0 && sourceSchemaKeys.length > 0) {
+          validationErrors.push('目标端口 schema 为空，但源端口提供了字段')
+        } else {
+          // 检查缺失的字段和类型不匹配
+          for (const [fieldName, fieldType] of Object.entries(targetSchema)) {
+            if (!(fieldName in sourceSchema)) {
+              validationErrors.push(`目标端口需要字段 "${fieldName}"，但源端口没有提供`)
+            } else if (sourceSchema[fieldName] !== fieldType) {
+              validationErrors.push(`字段 "${fieldName}" 类型不匹配：源端口为 "${sourceSchema[fieldName]}"，目标端口需要 "${fieldType}"`)
+            }
+          }
+        }
+      }
+    }
+
+    return {
+      sourceNode,
+      targetNode,
+      sourceHandle,
+      targetHandle,
+      sourceParam,
+      targetParam,
+      isValid,
+      validationErrors,
+    }
+  }, [edge, nodes])
+
+  // 当选中连接线时，清除节点选中状态
+  useEffect(() => {
+    if (edgeId && nodeId) {
+      // 如果同时有 edgeId 和 nodeId，优先显示连接线信息
+      // 这里不需要清除 nodeId，因为 App.tsx 已经处理了
+    }
+  }, [edgeId, nodeId])
 
   // 检查节点是否为自定义节点，并统计实例数量
   useEffect(() => {
@@ -140,10 +214,193 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ nodeId }) => {
     })
   }
 
+  // 如果选中了连接线，显示连接线信息
+  if (edgeId) {
+    // 如果 connectionInfo 为 null，可能是找不到节点，但仍应显示基本信息
+    if (!connectionInfo) {
+      return (
+        <div className="node-config-panel">
+          <Card 
+            title={`连接信息: ${edge?.source || '未知'} → ${edge?.target || '未知'}`}
+            size="small"
+          >
+            <Alert
+              message="无法加载连接信息"
+              description="可能的原因：连接的源节点或目标节点不存在，或连接数据无效"
+              type="warning"
+              showIcon
+            />
+          </Card>
+        </div>
+      )
+    }
+
+    const { sourceNode, targetNode, sourceHandle, targetHandle, sourceParam, targetParam, isValid, validationErrors } = connectionInfo
+
+    return (
+      <div className="node-config-panel">
+        <Card 
+          title={`连接信息: ${sourceNode.data?.label || sourceNode.id} → ${targetNode.data?.label || targetNode.id}`}
+          size="small"
+        >
+          <div style={{ marginBottom: 16 }}>
+            {isValid ? (
+              <Alert message="连接有效" type="success" showIcon />
+            ) : (
+              <Alert
+                message="连接参数不匹配"
+                description={
+                  <div>
+                    {validationErrors.map((error, index) => (
+                      <div key={index} style={{ marginTop: 4 }}>• {error}</div>
+                    ))}
+                  </div>
+                }
+                type="error"
+                showIcon
+              />
+            )}
+          </div>
+
+          <Tabs
+            defaultActiveKey="source"
+            items={[
+              {
+                key: 'source',
+                label: '源端口（输出）',
+                children: (
+                  <div>
+                    <Descriptions column={1} size="small" bordered>
+                      <Descriptions.Item label="节点">
+                        {sourceNode.data?.label || sourceNode.id}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="节点类型">
+                        {sourceNode.data?.type || sourceNode.type}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="端口名称">
+                        {sourceHandle}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="端口类型">
+                        {sourceParam?.isStreaming ? (
+                          <Tag color="green">流式</Tag>
+                        ) : (
+                          <Tag color="default">非流式</Tag>
+                        )}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="Schema">
+                        {sourceParam ? (
+                          <pre style={{ margin: 0, fontSize: 12, maxHeight: 200, overflow: 'auto' }}>
+                            {JSON.stringify(sourceParam.schema || {}, null, 2)}
+                          </pre>
+                        ) : (
+                          <Text type="danger">端口不存在</Text>
+                        )}
+                      </Descriptions.Item>
+                    </Descriptions>
+                  </div>
+                ),
+              },
+              {
+                key: 'target',
+                label: '目标端口（输入）',
+                children: (
+                  <div>
+                    <Descriptions column={1} size="small" bordered>
+                      <Descriptions.Item label="节点">
+                        {targetNode.data?.label || targetNode.id}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="节点类型">
+                        {targetNode.data?.type || targetNode.type}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="端口名称">
+                        {targetHandle}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="端口类型">
+                        {targetParam?.isStreaming ? (
+                          <Tag color="green">流式</Tag>
+                        ) : (
+                          <Tag color="default">非流式</Tag>
+                        )}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="Schema">
+                        {targetParam ? (
+                          <pre style={{ margin: 0, fontSize: 12, maxHeight: 200, overflow: 'auto' }}>
+                            {JSON.stringify(targetParam.schema || {}, null, 2)}
+                          </pre>
+                        ) : (
+                          <Text type="danger">端口不存在</Text>
+                        )}
+                      </Descriptions.Item>
+                    </Descriptions>
+                  </div>
+                ),
+              },
+              {
+                key: 'comparison',
+                label: '参数对比',
+                children: (
+                  <div>
+                    {sourceParam && targetParam ? (
+                      <div>
+                        <Descriptions column={1} size="small" bordered>
+                          <Descriptions.Item label="流式类型匹配">
+                            {sourceParam.isStreaming === targetParam.isStreaming ? (
+                              <Tag color="green">匹配</Tag>
+                            ) : (
+                              <Tag color="red">不匹配</Tag>
+                            )}
+                          </Descriptions.Item>
+                          <Descriptions.Item label="源端口 Schema 字段">
+                            {Object.keys(sourceParam.schema || {}).length > 0 ? (
+                              <div>
+                                {Object.entries(sourceParam.schema || {}).map(([key, value]) => (
+                                  <Tag key={key} style={{ marginBottom: 4 }}>
+                                    {key}: {String(value)}
+                                  </Tag>
+                                ))}
+                              </div>
+                            ) : (
+                              <Text type="secondary">无字段</Text>
+                            )}
+                          </Descriptions.Item>
+                          <Descriptions.Item label="目标端口 Schema 字段">
+                            {Object.keys(targetParam.schema || {}).length > 0 ? (
+                              <div>
+                                {Object.entries(targetParam.schema || {}).map(([key, value]) => (
+                                  <Tag key={key} style={{ marginBottom: 4 }}>
+                                    {key}: {String(value)}
+                                  </Tag>
+                                ))}
+                              </div>
+                            ) : (
+                              <Text type="secondary">无字段</Text>
+                            )}
+                          </Descriptions.Item>
+                        </Descriptions>
+                      </div>
+                    ) : (
+                      <Alert
+                        message="无法对比"
+                        description={!sourceParam ? '源端口不存在' : '目标端口不存在'}
+                        type="warning"
+                        showIcon
+                      />
+                    )}
+                  </div>
+                ),
+              },
+            ]}
+          />
+        </Card>
+      </div>
+    )
+  }
+
+  // 如果没有选中连接线，显示节点信息
   if (!node) {
     return (
       <div className="node-config-panel">
-        <Empty description="请选择一个节点进行配置" />
+        <Empty description="请选择一个节点或连接线进行查看" />
       </div>
     )
   }

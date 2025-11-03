@@ -2,11 +2,20 @@ import { create } from 'zustand'
 import { Node, Edge, Connection, addEdge, applyNodeChanges, applyEdgeChanges, NodeChange, EdgeChange } from 'reactflow'
 import { WorkflowConfig, WorkflowNode, WorkflowConnection } from '@/types/workflow'
 
+interface HistoryState {
+  nodes: Node[]
+  edges: Edge[]
+}
+
 interface WorkflowState {
   nodes: Node[]
   edges: Edge[]
   workflowConfig: WorkflowConfig | null
   currentFileName: string | null
+  
+  // 历史记录
+  history: HistoryState[]
+  historyIndex: number
   
   // Actions
   setNodes: (nodes: Node[]) => void
@@ -27,6 +36,13 @@ interface WorkflowState {
     inputParams?: Record<string, any>
     outputParams?: Record<string, any>
   }) => void
+  
+  // 撤销/重做
+  saveHistory: () => void
+  undo: () => void
+  redo: () => void
+  canUndo: () => boolean
+  canRedo: () => boolean
 }
 
 const initialNodes: Node[] = []
@@ -37,32 +53,84 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
   edges: initialEdges,
   workflowConfig: null,
   currentFileName: null,
+  history: [{ nodes: initialNodes, edges: initialEdges }],
+  historyIndex: 0,
 
   setNodes: (nodes) => set({ nodes }),
   setEdges: (edges) => set({ edges }),
 
   onNodesChange: (changes) => {
-    set({
-      nodes: applyNodeChanges(changes, get().nodes),
-    })
+    const currentNodes = get().nodes
+    let newNodes = applyNodeChanges(changes, currentNodes)
+    
+    // 检测是否有节点位置变化，并对位置进行对齐到10的倍数，实现吸附效果
+    const hasPositionChange = changes.some((change) => change.type === 'position')
+    if (hasPositionChange) {
+      // 对位置进行对齐到10的倍数，实现吸附对齐效果
+      // 使用 Math.round(x / 10) * 10 来对齐到最近的10的倍数
+      newNodes = newNodes.map((node) => {
+        if (node.position) {
+          return {
+            ...node,
+            position: {
+              x: Math.round(node.position.x / 10) * 10,
+              y: Math.round(node.position.y / 10) * 10,
+            },
+          }
+        }
+        return node
+      })
+    }
+    
+    set({ nodes: newNodes })
+    
+    // 检测是否有节点位置变化完成（drag结束）
+    const hasPositionChangeComplete = changes.some(
+      (change) => change.type === 'position' && change.dragging === false
+    )
+    
+    // 只在位置变化完成时保存历史，避免拖动过程中保存过多中间状态
+    if (hasPositionChangeComplete) {
+      // 延迟保存，确保位置已经更新
+      setTimeout(() => {
+        get().saveHistory()
+      }, 100)
+    }
   },
 
   onEdgesChange: (changes) => {
     set({
       edges: applyEdgeChanges(changes, get().edges),
     })
+    
+    // 检测是否有删除连接的操作
+    const hasRemove = changes.some((change) => change.type === 'remove')
+    if (hasRemove) {
+      // 删除连接后保存历史
+      setTimeout(() => {
+        get().saveHistory()
+      }, 0)
+    }
   },
 
   onConnect: (connection) => {
     set({
       edges: addEdge(connection, get().edges),
     })
+    // 添加连接后保存历史
+    setTimeout(() => {
+      get().saveHistory()
+    }, 0)
   },
 
   addNode: (node) => {
     set({
       nodes: [...get().nodes, node],
     })
+    // 添加节点后保存历史
+    setTimeout(() => {
+      get().saveHistory()
+    }, 0)
   },
 
   removeNode: (nodeId) => {
@@ -71,6 +139,10 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
       nodes: nodes.filter((n) => n.id !== nodeId),
       edges: edges.filter((e) => e.source !== nodeId && e.target !== nodeId),
     })
+    // 删除节点后保存历史
+    setTimeout(() => {
+      get().saveHistory()
+    }, 0)
   },
 
   updateNodeData: (nodeId, data) => {
@@ -117,9 +189,10 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
           }
         }
 
-        // 尝试加载节点的 schema
+        // 尝试加载节点的 schema 和类型信息
         let inputParams: Record<string, any> = {}
         let outputParams: Record<string, any> = {}
+        let nodeType: any = null
         
         try {
           const { nodeApi } = await import('@/services/api')
@@ -129,6 +202,23 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
           }
           if (schema.OUTPUT_PARAMS) {
             outputParams = schema.OUTPUT_PARAMS
+          }
+          
+          // 获取节点类型信息（包括 executionMode 和 color）
+          try {
+            const nodeTypes = await nodeApi.getNodeTypes()
+            const foundNodeType = nodeTypes.find((nt: any) => nt.id === node.type)
+            if (foundNodeType) {
+              nodeType = {
+                id: foundNodeType.id,
+                name: foundNodeType.name,
+                category: foundNodeType.category,
+                executionMode: foundNodeType.executionMode || 'sequential',
+                color: foundNodeType.color || '#1890ff',
+              }
+            }
+          } catch (error) {
+            console.warn(`无法获取节点类型信息 ${node.type}:`, error)
           }
         } catch (error) {
           console.warn(`无法加载节点 ${node.type} 的 schema:`, error)
@@ -145,9 +235,11 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
             // 优先使用从服务器获取的 schema，而不是文件中可能存在的旧数据
             inputParams,
             outputParams,
-            // 如果 data 中有其他字段（不包含 inputParams/outputParams），可以保留
+            // 设置 nodeType，确保颜色和执行模式能正确显示
+            nodeType,
+            // 如果 data 中有其他字段（不包含 inputParams/outputParams/nodeType），可以保留
             ...(node.data ? (() => {
-              const { inputParams: _, outputParams: __, ...otherData } = node.data
+              const { inputParams: _, outputParams: __, nodeType: ___, ...otherData } = node.data
               return otherData
             })() : {}),
           },
@@ -183,10 +275,13 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
       }
     })
 
+    const initialState = { nodes, edges }
     set({
       nodes,
       edges,
       workflowConfig: config,
+      history: [initialState],
+      historyIndex: 0,
       // 加载工作流时不设置文件名，需要外部调用setCurrentFileName
     })
   },
@@ -196,12 +291,77 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
   },
 
   clearWorkflow: () => {
+    const initialState = { nodes: initialNodes, edges: initialEdges }
     set({
       nodes: initialNodes,
       edges: initialEdges,
       workflowConfig: null,
       currentFileName: null,
+      history: [initialState],
+      historyIndex: 0,
     })
+  },
+
+  // 保存历史记录
+  saveHistory: () => {
+    const { nodes, edges, history, historyIndex } = get()
+    const currentState = {
+      nodes: JSON.parse(JSON.stringify(nodes)), // 深拷贝
+      edges: JSON.parse(JSON.stringify(edges)),
+    }
+
+    // 如果当前不在历史记录的末尾，删除当前位置之后的所有记录
+    const newHistory = history.slice(0, historyIndex + 1)
+    newHistory.push(currentState)
+
+    // 限制历史记录数量（最多保留50个状态）
+    const maxHistorySize = 50
+    if (newHistory.length > maxHistorySize) {
+      newHistory.shift()
+    } else {
+      set({ historyIndex: newHistory.length - 1 })
+    }
+
+    set({ history: newHistory })
+  },
+
+  // 撤销
+  undo: () => {
+    const { history, historyIndex } = get()
+    if (historyIndex > 0) {
+      const newIndex = historyIndex - 1
+      const state = history[newIndex]
+      set({
+        nodes: JSON.parse(JSON.stringify(state.nodes)),
+        edges: JSON.parse(JSON.stringify(state.edges)),
+        historyIndex: newIndex,
+      })
+    }
+  },
+
+  // 重做
+  redo: () => {
+    const { history, historyIndex } = get()
+    if (historyIndex < history.length - 1) {
+      const newIndex = historyIndex + 1
+      const state = history[newIndex]
+      set({
+        nodes: JSON.parse(JSON.stringify(state.nodes)),
+        edges: JSON.parse(JSON.stringify(state.edges)),
+        historyIndex: newIndex,
+      })
+    }
+  },
+
+  // 是否可以撤销
+  canUndo: () => {
+    return get().historyIndex > 0
+  },
+
+  // 是否可以重做
+  canRedo: () => {
+    const { history, historyIndex } = get()
+    return historyIndex < history.length - 1
   },
 
   updateNodeTypeInstances: (nodeTypeId, nodeTypeData) => {
@@ -294,10 +454,11 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
       const { inputParams, outputParams, label, type, config, nodeType, ...restData } = node.data || {}
       
       // 转换 position 格式：内部使用 {x, y}，导出使用 {left, top} 避免 YAML 歧义
+      // 对齐到10的倍数，让节点位置更整齐，便于对齐
       const exportedPosition = node.position
         ? {
-            left: node.position.x,
-            top: node.position.y,
+            left: Math.round(node.position.x / 10) * 10,
+            top: Math.round(node.position.y / 10) * 10,
           }
         : undefined
       

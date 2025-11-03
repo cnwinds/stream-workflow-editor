@@ -20,7 +20,8 @@ const CustomNode: React.FC<NodeProps<CustomNodeData>> = ({ data, selected, id })
   const { updateNodeData } = useWorkflowStore()
   
   const nodeType = data.nodeType
-  const executionMode = nodeType?.executionMode || 'sequential'
+  // 优先使用 nodeType 中的 executionMode，如果没有则尝试从 data 中获取，最后使用默认值
+  const executionMode = nodeType?.executionMode || data.executionMode || 'sequential'
   
   // 同步外部更新的 data.inputParams 和 data.outputParams 到组件状态
   useEffect(() => {
@@ -110,6 +111,18 @@ const CustomNode: React.FC<NodeProps<CustomNodeData>> = ({ data, selected, id })
     }
   }
 
+  // 优先使用 nodeType 中的 color，如果没有则根据 executionMode 计算
+  const getNodeColor = () => {
+    if (nodeType?.color) {
+      return nodeType.color
+    }
+    if (data.color) {
+      return data.color
+    }
+    // 如果没有设置颜色，根据 executionMode 返回默认颜色
+    return getModeColor()
+  }
+
   // 将参数对象转换为数组，处理ParameterSchema格式
   const inputParamsList = Object.entries(finalInputParams).map(([name, param]) => {
     // 参数格式：{ isStreaming: boolean, schema: Record<string, string> }
@@ -161,10 +174,10 @@ const CustomNode: React.FC<NodeProps<CustomNodeData>> = ({ data, selected, id })
     >
       <div
         className="custom-node-header"
-        style={{ borderTopColor: getModeColor() }}
+        style={{ borderTopColor: getNodeColor() }}
       >
         <span className="custom-node-title">{data.label}</span>
-        <span className="custom-node-mode" style={{ color: getModeColor() }}>
+        <span className="custom-node-mode" style={{ color: getNodeColor() }}>
           {getModeLabel()}
         </span>
       </div>

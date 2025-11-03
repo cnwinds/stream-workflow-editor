@@ -12,6 +12,9 @@ export default defineConfig({
   },
   server: {
     port: 3000,
+    watch: {
+      usePolling: true, // Windows 文件系统需要轮询
+    },
     proxy: {
       '/api': {
         target: 'http://localhost:3010',

@@ -10,6 +10,7 @@ const { Header, Content, Sider } = Layout
 
 function App() {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null)
 
   return (
     <Layout style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
@@ -21,10 +22,14 @@ function App() {
           <NodePalette />
         </Sider>
         <Content style={{ position: 'relative', overflow: 'hidden' }}>
-          <WorkflowCanvas onNodeSelect={setSelectedNodeId} selectedNodeId={selectedNodeId} />
+          <WorkflowCanvas 
+            onNodeSelect={setSelectedNodeId} 
+            selectedNodeId={selectedNodeId}
+            onEdgeSelect={setSelectedEdgeId}
+          />
         </Content>
         <Sider width={350} style={{ background: '#fff', borderLeft: '1px solid #e8e8e8', overflow: 'auto' }}>
-          <NodeConfigPanel nodeId={selectedNodeId} />
+          <NodeConfigPanel nodeId={selectedNodeId} edgeId={selectedEdgeId} />
         </Sider>
       </Layout>
     </Layout>

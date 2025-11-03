@@ -28,11 +28,13 @@ const edgeTypes = {
 interface WorkflowCanvasProps {
   onNodeSelect?: (nodeId: string | null) => void
   selectedNodeId?: string | null
+  onEdgeSelect?: (edgeId: string | null) => void // 连接线选中回调
 }
 
 const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
   onNodeSelect,
   selectedNodeId,
+  onEdgeSelect,
 }) => {
   const reactFlowInstance = useRef<ReactFlowInstance | null>(null)
   const [selectedEdgeId, setSelectedEdgeId] = React.useState<string | null>(null)
@@ -45,17 +47,30 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
     onConnect,
     addNode,
     removeNode,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
   } = useWorkflowStore()
 
-  // 处理 Delete 键删除节点或连接
+  // 监听 edges 变化，如果选中的连接线被删除，清除选中状态
+  useEffect(() => {
+    if (selectedEdgeId && !edges.find((e) => e.id === selectedEdgeId)) {
+      setSelectedEdgeId(null)
+      onEdgeSelect?.(null)
+    }
+  }, [edges, selectedEdgeId, onEdgeSelect])
+
+  // 处理键盘快捷键（Delete、撤销、重做）
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      // 避免在输入框中删除
+      // 避免在输入框中触发
       const target = event.target as HTMLElement
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
         return
       }
 
+      // 处理 Delete/Backspace 删除
       if (event.key === 'Delete' || event.key === 'Backspace') {
         event.preventDefault()
         event.stopPropagation()
@@ -64,11 +79,33 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
         if (selectedEdgeId) {
           onEdgesChange([{ id: selectedEdgeId, type: 'remove' }])
           setSelectedEdgeId(null)
+          onEdgeSelect?.(null)
         } 
         // 其次删除选中的节点
         else if (selectedNodeId) {
           removeNode(selectedNodeId)
           onNodeSelect?.(null)
+        }
+      }
+
+      // 处理 Ctrl+Z 撤销
+      if (event.key === 'z' && (event.ctrlKey || event.metaKey) && !event.shiftKey) {
+        event.preventDefault()
+        event.stopPropagation()
+        if (canUndo()) {
+          undo()
+        }
+      }
+
+      // 处理 Ctrl+Y 或 Ctrl+Shift+Z 重做
+      if (
+        (event.key === 'y' && (event.ctrlKey || event.metaKey)) ||
+        (event.key === 'z' && (event.ctrlKey || event.metaKey) && event.shiftKey)
+      ) {
+        event.preventDefault()
+        event.stopPropagation()
+        if (canRedo()) {
+          redo()
         }
       }
     }
@@ -78,15 +115,17 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
     return () => {
       document.removeEventListener('keydown', handleKeyDown, true)
     }
-  }, [selectedNodeId, selectedEdgeId, removeNode, onNodeSelect, onEdgesChange])
+  }, [selectedNodeId, selectedEdgeId, removeNode, onNodeSelect, onEdgesChange, undo, redo, canUndo, canRedo, onEdgeSelect])
 
   const handleEdgeClick = useCallback(
     (_event: React.MouseEvent, edge: Edge) => {
       setSelectedEdgeId(edge.id)
       // 清除节点选中状态
       onNodeSelect?.(null)
+      // 通知父组件选中的连接线
+      onEdgeSelect?.(edge.id)
     },
-    [onNodeSelect]
+    [onNodeSelect, onEdgeSelect]
   )
 
   const handleNodeClick = useCallback(
@@ -94,14 +133,16 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
       onNodeSelect?.(node.id)
       // 清除连接选中状态
       setSelectedEdgeId(null)
+      onEdgeSelect?.(null)
     },
-    [onNodeSelect]
+    [onNodeSelect, onEdgeSelect]
   )
 
   const handlePaneClick = useCallback(() => {
     onNodeSelect?.(null)
     setSelectedEdgeId(null)
-  }, [onNodeSelect])
+    onEdgeSelect?.(null)
+  }, [onNodeSelect, onEdgeSelect])
 
   const onInit = useCallback((instance: ReactFlowInstance) => {
     reactFlowInstance.current = instance
@@ -122,10 +163,16 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
       }
 
       const nodeType: NodeType = JSON.parse(nodeTypeJson)
-      const position = reactFlowInstance.current?.screenToFlowPosition({
+      const rawPosition = reactFlowInstance.current?.screenToFlowPosition({
         x: event.clientX,
         y: event.clientY,
       }) || { x: 0, y: 0 }
+      
+      // 对齐到10的倍数，实现吸附效果
+      const position = {
+        x: Math.round(rawPosition.x / 10) * 10,
+        y: Math.round(rawPosition.y / 10) * 10,
+      }
 
       // 加载节点的 schema
       let inputParams: Record<string, any> = {}
@@ -225,6 +272,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
               ...edgeWithoutLabel,
               ...edgeOptions,
               selected: isSelected,
+              selectable: true, // 确保边可以被选中
               // 如果连接无效，使用红色样式
               style: {
                 ...edgeOptions.style,

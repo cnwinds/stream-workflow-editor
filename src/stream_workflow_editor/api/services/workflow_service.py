@@ -265,9 +265,19 @@ class WorkflowEngineService:
                         # 尝试获取节点ID（从注册装饰器或类名推断）
                         node_id = getattr(obj, '__node_id__', None)
                         if not node_id:
-                            # 从类名推断节点ID
-                            node_id = name.lower().replace('node', '').replace('_', '_')
-                            if not node_id.endswith('_node'):
+                            # 从类名推断节点ID（驼峰命名转下划线命名）
+                            import re
+                            # 在大写字母前插入下划线（除了第一个字母）
+                            s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
+                            # 处理连续大写字母
+                            s2 = re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1)
+                            node_id = s2.lower()
+                            # 移除末尾的 'node'（如果存在）并确保以 _node 结尾
+                            if node_id.endswith('_node'):
+                                pass  # 已经是正确的格式
+                            elif node_id.endswith('node'):
+                                node_id = node_id.replace('node', '_node')
+                            else:
                                 node_id = f"{node_id}_node"
                         
                         # 获取节点执行模式

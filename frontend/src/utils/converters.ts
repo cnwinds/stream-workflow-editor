@@ -18,7 +18,13 @@ export class WorkflowConverter {
       .map((node) => ({
         id: node.id,
         type: node.type!,
-        position: node.position,
+        position: node.position
+          ? {
+              // 对齐到10的倍数，让节点位置更整齐，便于对齐
+              x: Math.round(node.position.x / 10) * 10,
+              y: Math.round(node.position.y / 10) * 10,
+            }
+          : undefined,
         data: node.data,
       }))
 

@@ -65,6 +65,19 @@ def save_registry(registry: Dict[str, Any]):
         json.dump(registry, f, ensure_ascii=False, indent=2)
 
 
+def camel_to_snake(name: str) -> str:
+    """将驼峰命名转换为下划线命名
+    
+    例如: OpeningAgentNode -> opening_agent_node
+    """
+    import re
+    # 在大写字母前插入下划线（除了第一个字母）
+    s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
+    # 处理连续大写字母（如 HTTPRequest -> HTTP_Request）
+    s2 = re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1)
+    return s2.lower()
+
+
 def extract_node_metadata(node_class) -> Dict[str, Any]:
     """从节点类中提取元数据"""
     if not Node or not issubclass(node_class, Node):
@@ -214,25 +227,32 @@ def get_custom_node_metadata(node_id: str) -> Optional[Dict[str, Any]]:
         # 获取实际的节点类型（从装饰器获取）
         actual_node_type = getattr(node_class, '__node_id__', None)
         if not actual_node_type:
-            # 如果没有装饰器，使用推断的节点ID
+            # 如果没有装饰器，从类名推断节点ID（驼峰命名转下划线命名）
             for name, obj in inspect.getmembers(module, inspect.isclass):
                 if obj == node_class:
-                    inferred_id = name.lower().replace('node', '').replace('_', '_')
-                    if inferred_id and not inferred_id.endswith('_node'):
+                    # 将驼峰命名转换为下划线命名，例如 OpeningAgentNode -> opening_agent_node
+                    inferred_id = camel_to_snake(name)
+                    # 移除末尾的 'node'（如果存在）
+                    if inferred_id.endswith('_node'):
+                        inferred_id = inferred_id  # 已经是正确的格式
+                    elif inferred_id.endswith('node'):
+                        inferred_id = inferred_id.replace('node', '_node')
+                    else:
                         inferred_id = f"{inferred_id}_node"
                     actual_node_type = inferred_id
                     break
         
-        # 如果注册表中没有 type 字段，但提取到了实际节点类型，更新注册表
+        # 使用实际的节点类型作为 id（用于工作流配置）
+        # 优先级：1. 从装饰器获取的 actual_node_type（最准确）
+        #         2. 注册表中的 type（可能过时或不准确）
+        #         3. 注册表ID（fallback）
         registry_type = node_entry.get("type")
-        if not registry_type and actual_node_type:
-            # 更新注册表，添加 type 字段
+        final_node_type = actual_node_type or registry_type or node_id
+        
+        # 如果从装饰器获取的节点类型与注册表中的不同，更新注册表
+        if actual_node_type and actual_node_type != registry_type:
             node_entry["type"] = actual_node_type
             save_registry(registry)
-        
-        # 使用实际的节点类型作为 id（用于工作流配置）
-        # 优先使用注册表中的 type，其次使用提取的实际类型，最后使用注册表ID
-        final_node_type = registry_type or actual_node_type or node_id
         if final_node_type:
             metadata["id"] = final_node_type
         
@@ -502,21 +522,34 @@ def list_custom_nodes() -> List[Dict[str, Any]]:
             # 重新加载注册表
             registry = load_registry()
     
+    registry_updated = False
     for node_entry in registry.get("custom_nodes", []):
         # 使用注册表ID查找文件
         registry_id = node_entry.get("id")
-        node_type = node_entry.get("type")  # 实际的节点类型（从 @register_node 获取）
+        node_type = node_entry.get("type")  # 注册表中的节点类型（可能过时或不准确）
         
         metadata = get_custom_node_metadata(registry_id)  # 使用注册表ID查找文件和提取元数据
         if metadata:
-            # 如果注册表中有 type 字段，使用它作为节点ID（用于工作流配置）
-            # metadata 中的 id 是从节点类的 __node_id__ 提取的，应该与 type 一致
-            if node_type:
-                metadata["id"] = node_type  # 使用注册表中的 type 作为节点ID
-                metadata["type"] = node_type
+            # 优先级：从装饰器获取的节点ID（metadata["id"]）最准确
+            # metadata["id"] 已经是从 __node_id__ 提取的，应该与 @register_node 中的值一致
+            # 这样可以确保使用 @register_node 装饰器中指定的正确节点ID
+            final_node_id = metadata.get("id") or node_type or registry_id
+            if final_node_id:
+                metadata["id"] = final_node_id
+                metadata["type"] = final_node_id
+            
+            # 如果从装饰器获取的节点ID与注册表中的不同，更新注册表
+            if metadata.get("id") and metadata["id"] != node_type:
+                node_entry["type"] = metadata["id"]
+                registry_updated = True
+            
             # 保存注册表ID以便管理操作
             metadata["registryId"] = registry_id
             nodes.append(metadata)
+    
+    # 如果注册表有更新，保存它
+    if registry_updated:
+        save_registry(registry)
     
     return nodes
 
@@ -567,10 +600,14 @@ def _auto_scan_nodes(custom_nodes_dir: Path):
                     # 获取节点类型（从装饰器获取）
                     node_type = getattr(obj, '__node_id__', None)
                     if not node_type:
-                        # 尝试从类名推断（与系统节点规则保持一致）
-                        node_type = name.lower().replace('node', '').replace('_', '_')
-                        # 如果节点类型不是以 _node 结尾，自动添加（与系统节点保持一致）
-                        if node_type and not node_type.endswith('_node'):
+                        # 从类名推断节点ID（驼峰命名转下划线命名）
+                        node_type = camel_to_snake(name)
+                        # 移除末尾的 'node'（如果存在）并确保以 _node 结尾
+                        if node_type.endswith('_node'):
+                            pass  # 已经是正确的格式
+                        elif node_type.endswith('node'):
+                            node_type = node_type.replace('node', '_node')
+                        else:
                             node_type = f"{node_type}_node"
                     break
             

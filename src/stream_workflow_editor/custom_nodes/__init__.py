@@ -86,10 +86,19 @@ def load_custom_nodes(custom_nodes_dir: Path = None):
                         # 获取节点ID（从装饰器或类属性）
                         node_id = getattr(obj, '__node_id__', None)
                         if not node_id:
-                            # 尝试从类名推断（与系统节点规则保持一致）
-                            node_id = name.lower().replace('node', '').replace('_', '_')
-                            # 如果节点ID不是以 _node 结尾，自动添加（与系统节点保持一致）
-                            if node_id and not node_id.endswith('_node'):
+                            # 从类名推断节点ID（驼峰命名转下划线命名）
+                            import re
+                            # 在大写字母前插入下划线（除了第一个字母）
+                            s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
+                            # 处理连续大写字母
+                            s2 = re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1)
+                            node_id = s2.lower()
+                            # 移除末尾的 'node'（如果存在）并确保以 _node 结尾
+                            if node_id.endswith('_node'):
+                                pass  # 已经是正确的格式
+                            elif node_id.endswith('node'):
+                                node_id = node_id.replace('node', '_node')
+                            else:
                                 node_id = f"{node_id}_node"
                         
                         _loaded_nodes[node_id] = obj
