@@ -636,17 +636,34 @@ def _auto_scan_nodes(custom_nodes_dir: Path):
 
 
 def get_node_code(node_id: str) -> Optional[str]:
-    """获取节点Python代码"""
+    """获取节点Python代码
+    支持通过注册表ID或节点类型查找
+    """
     registry = load_registry()
     
-    for node_entry in registry.get("custom_nodes", []):
-        if node_entry.get("id") == node_id:
-            python_file = node_entry.get("pythonFile")
-            if python_file:
-                python_path = get_custom_nodes_dir() / python_file
-                if python_path.exists():
-                    with open(python_path, 'r', encoding='utf-8') as f:
-                        return f.read()
+    # 查找节点（支持通过注册表ID或节点类型查找）
+    node_entry = None
+    for node in registry.get("custom_nodes", []):
+        # 匹配注册表ID
+        if node.get("id") == node_id:
+            node_entry = node
+            break
+        # 匹配节点类型
+        if node.get("type") == node_id:
+            node_entry = node
+            break
+    
+    if not node_entry:
+        return None
+    
+    python_file = node_entry.get("pythonFile")
+    if not python_file:
+        return None
+    
+    python_path = get_custom_nodes_dir() / python_file
+    if python_path.exists():
+        with open(python_path, 'r', encoding='utf-8') as f:
+            return f.read()
     
     return None
 

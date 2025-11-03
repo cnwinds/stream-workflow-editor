@@ -12,6 +12,11 @@ function App() {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null)
 
+  // 根据选中类型确定属性栏宽度
+  // 连线属性使用更宽的宽度，节点属性使用默认宽度
+  const hasSelection = selectedNodeId || selectedEdgeId
+  const configPanelWidth = selectedEdgeId ? 500 : 350 // 连线属性更宽
+
   return (
     <Layout style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
       <Header style={{ padding: 0, background: '#fff', borderBottom: '1px solid #e8e8e8', flexShrink: 0 }}>
@@ -28,9 +33,14 @@ function App() {
             onEdgeSelect={setSelectedEdgeId}
           />
         </Content>
-        <Sider width={350} style={{ background: '#fff', borderLeft: '1px solid #e8e8e8', overflow: 'auto' }}>
-          <NodeConfigPanel nodeId={selectedNodeId} edgeId={selectedEdgeId} />
-        </Sider>
+        {hasSelection && (
+          <Sider 
+            width={configPanelWidth} 
+            style={{ background: '#fff', borderLeft: '1px solid #e8e8e8', overflow: 'auto' }}
+          >
+            <NodeConfigPanel nodeId={selectedNodeId} edgeId={selectedEdgeId} />
+          </Sider>
+        )}
       </Layout>
     </Layout>
   )

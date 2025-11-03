@@ -1,5 +1,5 @@
 # Python
-__pycache__/
+__pycache__/**
 *.py[cod]
 *$py.class
 *.so
@@ -63,4 +63,3 @@ src/stream_workflow_editor.egg-info/
 *.tmp
 *.temp
 .cache/
-

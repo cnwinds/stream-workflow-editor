@@ -380,11 +380,11 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
       const outputNames = outputs.map((o) => o.name).filter((n) => n)
       
       if (inputNames.length !== new Set(inputNames).size) {
-        message.error('输入参数名称不能重复')
+        message.error('输入名称不能重复')
         return
       }
       if (outputNames.length !== new Set(outputNames).size) {
-        message.error('输出参数名称不能重复')
+        message.error('输出名称不能重复')
         return
       }
       
@@ -441,11 +441,11 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
       const outputNames = outputs.map((o) => o.name).filter((n) => n)
       
       if (inputNames.length !== new Set(inputNames).size) {
-        message.error('输入参数名称不能重复')
+        message.error('输入管理名称不能重复')
         return
       }
       if (outputNames.length !== new Set(outputNames).size) {
-        message.error('输出参数名称不能重复')
+        message.error('输出管理名称不能重复')
         return
       }
 
@@ -731,7 +731,7 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
           },
           {
             key: 'inputs',
-            label: '输入参数',
+            label: '输入管理',
             children: (
             <Space direction="vertical" style={{ width: '100%' }}>
               {!readOnly && (
@@ -741,7 +741,7 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
               )}
               {inputs.length === 0 ? (
                 <div style={{ padding: '40px 0', textAlign: 'center', color: '#999' }}>
-                  暂无输入参数，点击上方按钮添加
+                  暂无内容，点击上方按钮添加
                 </div>
               ) : (
                 <Collapse
@@ -798,7 +798,7 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
           },
           {
             key: 'outputs',
-            label: '输出参数',
+            label: '输出管理',
             children: (
             <Space direction="vertical" style={{ width: '100%' }}>
               {!readOnly && (
@@ -808,7 +808,7 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
               )}
               {outputs.length === 0 ? (
                 <div style={{ padding: '40px 0', textAlign: 'center', color: '#999' }}>
-                  暂无输出参数，点击上方按钮添加
+                  暂无内容，点击上方按钮添加
                 </div>
               ) : (
                 <Collapse

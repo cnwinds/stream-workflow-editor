@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react'
-import { Card, Form, Input, Button, Empty, Tabs, message, Typography, Descriptions, Tag, Alert } from 'antd'
+import { Card, Form, Input, Button, Empty, Tabs, message, Typography, Tag, Alert } from 'antd'
 import { useWorkflowStore } from '@/stores/workflowStore'
 import { nodeApi } from '@/services/api'
 import Editor from '@monaco-editor/react'
@@ -261,135 +261,121 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ nodeId, edgeId }) => 
             )}
           </div>
 
-          <Tabs
-            defaultActiveKey="source"
-            items={[
-              {
-                key: 'source',
-                label: '源端口（输出）',
-                children: (
-                  <div>
-                    <Descriptions column={1} size="small" bordered>
-                      <Descriptions.Item label="节点">
-                        {sourceNode.data?.label || sourceNode.id}
-                      </Descriptions.Item>
-                      <Descriptions.Item label="节点类型">
-                        {sourceNode.data?.type || sourceNode.type}
-                      </Descriptions.Item>
-                      <Descriptions.Item label="端口名称">
-                        {sourceHandle}
-                      </Descriptions.Item>
-                      <Descriptions.Item label="端口类型">
-                        {sourceParam?.isStreaming ? (
-                          <Tag color="green">流式</Tag>
-                        ) : (
-                          <Tag color="default">非流式</Tag>
-                        )}
-                      </Descriptions.Item>
-                      <Descriptions.Item label="Schema">
-                        {sourceParam ? (
-                          <pre style={{ margin: 0, fontSize: 12, maxHeight: 200, overflow: 'auto' }}>
-                            {JSON.stringify(sourceParam.schema || {}, null, 2)}
-                          </pre>
-                        ) : (
-                          <Text type="danger">端口不存在</Text>
-                        )}
-                      </Descriptions.Item>
-                    </Descriptions>
-                  </div>
-                ),
-              },
-              {
-                key: 'target',
-                label: '目标端口（输入）',
-                children: (
-                  <div>
-                    <Descriptions column={1} size="small" bordered>
-                      <Descriptions.Item label="节点">
-                        {targetNode.data?.label || targetNode.id}
-                      </Descriptions.Item>
-                      <Descriptions.Item label="节点类型">
-                        {targetNode.data?.type || targetNode.type}
-                      </Descriptions.Item>
-                      <Descriptions.Item label="端口名称">
-                        {targetHandle}
-                      </Descriptions.Item>
-                      <Descriptions.Item label="端口类型">
-                        {targetParam?.isStreaming ? (
-                          <Tag color="green">流式</Tag>
-                        ) : (
-                          <Tag color="default">非流式</Tag>
-                        )}
-                      </Descriptions.Item>
-                      <Descriptions.Item label="Schema">
-                        {targetParam ? (
-                          <pre style={{ margin: 0, fontSize: 12, maxHeight: 200, overflow: 'auto' }}>
-                            {JSON.stringify(targetParam.schema || {}, null, 2)}
-                          </pre>
-                        ) : (
-                          <Text type="danger">端口不存在</Text>
-                        )}
-                      </Descriptions.Item>
-                    </Descriptions>
-                  </div>
-                ),
-              },
-              {
-                key: 'comparison',
-                label: '参数对比',
-                children: (
-                  <div>
-                    {sourceParam && targetParam ? (
-                      <div>
-                        <Descriptions column={1} size="small" bordered>
-                          <Descriptions.Item label="流式类型匹配">
-                            {sourceParam.isStreaming === targetParam.isStreaming ? (
-                              <Tag color="green">匹配</Tag>
-                            ) : (
-                              <Tag color="red">不匹配</Tag>
-                            )}
-                          </Descriptions.Item>
-                          <Descriptions.Item label="源端口 Schema 字段">
-                            {Object.keys(sourceParam.schema || {}).length > 0 ? (
-                              <div>
-                                {Object.entries(sourceParam.schema || {}).map(([key, value]) => (
-                                  <Tag key={key} style={{ marginBottom: 4 }}>
-                                    {key}: {String(value)}
-                                  </Tag>
-                                ))}
-                              </div>
-                            ) : (
-                              <Text type="secondary">无字段</Text>
-                            )}
-                          </Descriptions.Item>
-                          <Descriptions.Item label="目标端口 Schema 字段">
-                            {Object.keys(targetParam.schema || {}).length > 0 ? (
-                              <div>
-                                {Object.entries(targetParam.schema || {}).map(([key, value]) => (
-                                  <Tag key={key} style={{ marginBottom: 4 }}>
-                                    {key}: {String(value)}
-                                  </Tag>
-                                ))}
-                              </div>
-                            ) : (
-                              <Text type="secondary">无字段</Text>
-                            )}
-                          </Descriptions.Item>
-                        </Descriptions>
+          {/* 合并成一张表，三列布局：属性标签 | 源端口 | 目标端口 */}
+          <div style={{ border: '1px solid #d9d9d9', borderRadius: 4 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+              <tbody>
+                <tr style={{ borderBottom: '1px solid #f0f0f0' }}>
+                  <td style={{ padding: '8px 12px', fontWeight: 'bold', width: 100, background: '#fafafa', borderRight: '1px solid #f0f0f0' }}>节点</td>
+                  <td style={{ padding: '8px 12px', wordBreak: 'break-word' }}>
+                    <div>
+                      <div style={{ color: '#1890ff', fontWeight: 500, marginBottom: 4 }}>源端口</div>
+                      {sourceNode.data?.label || sourceNode.id}
+                    </div>
+                  </td>
+                  <td style={{ padding: '8px 12px', wordBreak: 'break-word' }}>
+                    <div>
+                      <div style={{ color: '#52c41a', fontWeight: 500, marginBottom: 4 }}>目标端口</div>
+                      {targetNode.data?.label || targetNode.id}
+                    </div>
+                  </td>
+                </tr>
+                <tr style={{ borderBottom: '1px solid #f0f0f0' }}>
+                  <td style={{ padding: '8px 12px', fontWeight: 'bold', background: '#fafafa', borderRight: '1px solid #f0f0f0' }}>节点类型</td>
+                  <td style={{ padding: '8px 12px', wordBreak: 'break-word' }}>{sourceNode.data?.type || sourceNode.type}</td>
+                  <td style={{ padding: '8px 12px', wordBreak: 'break-word' }}>{targetNode.data?.type || targetNode.type}</td>
+                </tr>
+                <tr style={{ borderBottom: '1px solid #f0f0f0' }}>
+                  <td style={{ padding: '8px 12px', fontWeight: 'bold', background: '#fafafa', borderRight: '1px solid #f0f0f0' }}>端口名称</td>
+                  <td style={{ padding: '8px 12px', wordBreak: 'break-word' }}>{sourceHandle}</td>
+                  <td style={{ padding: '8px 12px', wordBreak: 'break-word' }}>{targetHandle}</td>
+                </tr>
+                <tr style={{ borderBottom: '1px solid #f0f0f0' }}>
+                  <td style={{ padding: '8px 12px', fontWeight: 'bold', background: '#fafafa', borderRight: '1px solid #f0f0f0' }}>端口类型</td>
+                  <td style={{ padding: '8px 12px', wordBreak: 'break-word' }}>
+                    {sourceParam?.isStreaming ? (
+                      <Tag color="green">流式</Tag>
+                    ) : (
+                      <Tag color="default">非流式</Tag>
+                    )}
+                  </td>
+                  <td style={{ padding: '8px 12px', wordBreak: 'break-word' }}>
+                    {targetParam?.isStreaming ? (
+                      <Tag color="green">流式</Tag>
+                    ) : (
+                      <Tag color="default">非流式</Tag>
+                    )}
+                  </td>
+                </tr>
+                <tr style={{ borderBottom: '1px solid #f0f0f0' }}>
+                  <td style={{ padding: '8px 12px', fontWeight: 'bold', background: '#fafafa', borderRight: '1px solid #f0f0f0', verticalAlign: 'top' }}>Schema</td>
+                  <td style={{ padding: '8px 12px', wordBreak: 'break-word', verticalAlign: 'top' }}>
+                    {sourceParam ? (
+                      <div style={{ 
+                        fontSize: 12, 
+                        maxHeight: 200, 
+                        overflowY: 'auto',
+                        overflowX: 'visible',
+                        wordBreak: 'break-word',
+                        whiteSpace: 'pre-wrap'
+                      }}>
+                        {JSON.stringify(sourceParam.schema || {}, null, 2)}
                       </div>
                     ) : (
-                      <Alert
-                        message="无法对比"
-                        description={!sourceParam ? '源端口不存在' : '目标端口不存在'}
-                        type="warning"
-                        showIcon
-                      />
+                      <Text type="danger">端口不存在</Text>
                     )}
-                  </div>
-                ),
-              },
-            ]}
-          />
+                  </td>
+                  <td style={{ padding: '8px 12px', wordBreak: 'break-word', verticalAlign: 'top' }}>
+                    {targetParam ? (
+                      <div style={{ 
+                        fontSize: 12, 
+                        maxHeight: 200, 
+                        overflowY: 'auto',
+                        overflowX: 'visible',
+                        wordBreak: 'break-word',
+                        whiteSpace: 'pre-wrap'
+                      }}>
+                        {JSON.stringify(targetParam.schema || {}, null, 2)}
+                      </div>
+                    ) : (
+                      <Text type="danger">端口不存在</Text>
+                    )}
+                  </td>
+                </tr>
+                {sourceParam && targetParam && Object.keys(sourceParam.schema || {}).length > 0 && (
+                  <tr>
+                    <td style={{ padding: '8px 12px', fontWeight: 'bold', background: '#fafafa', borderRight: '1px solid #f0f0f0' }}>字段对比</td>
+                    <td style={{ padding: '8px 12px', wordBreak: 'break-word' }}>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                        {Object.entries(sourceParam.schema || {}).map(([key, value]) => (
+                          <Tag key={key} style={{ margin: 0 }}>
+                            {key}: {String(value)}
+                          </Tag>
+                        ))}
+                      </div>
+                    </td>
+                    <td style={{ padding: '8px 12px', wordBreak: 'break-word' }}>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                        {Object.entries(targetParam.schema || {}).map(([key, value]) => {
+                          const sourceValue = sourceParam.schema?.[key]
+                          const matches = sourceValue === value
+                          return (
+                            <Tag 
+                              key={key} 
+                              color={matches ? undefined : 'red'} 
+                              style={{ margin: 0 }}
+                            >
+                              {key}: {String(value)}
+                            </Tag>
+                          )
+                        })}
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </Card>
       </div>
     )
