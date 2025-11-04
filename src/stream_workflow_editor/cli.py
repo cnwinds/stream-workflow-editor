@@ -171,9 +171,12 @@ def start(work_dir, nodes_dir, config_file, project_root, host, port, reload, cl
         start_server(work_dir, nodes_dir, config_file, project_root, host, port, reload)
     elif has_static_files and not force_client:
         # 已编译静态文件，只启动后端（后端会自动服务静态文件）
-        click.echo("检测到已编译的静态文件，将使用生产模式（无需启动开发服务器）")
+        # 生产模式：前后端共用 3000 端口
+        if port is None:
+            port = 3000
+        click.echo("检测到已编译的静态文件，将使用生产模式（前后端共用端口）")
         click.echo(f"静态文件目录: {static_dir}")
-        click.echo(f"访问地址: http://{host or '0.0.0.0'}:{port or 3010}")
+        click.echo(f"访问地址: http://{host or '0.0.0.0'}:{port}")
         click.echo("提示: 如需启动开发服务器，请使用 --force-client 参数")
         start_server(work_dir, nodes_dir, config_file, project_root, host, port, reload)
     else:

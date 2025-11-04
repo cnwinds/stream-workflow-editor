@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Input, Button, Modal, Space } from 'antd'
-import { MoreOutlined, PlusOutlined, DeleteOutlined } from '@ant-design/icons'
+import { MoreOutlined, PlusOutlined, DeleteOutlined, HolderOutlined } from '@ant-design/icons'
 import Editor from '@monaco-editor/react'
 import './ConfigEditor.css'
 
@@ -21,6 +21,9 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
   const [editingIndex, setEditingIndex] = useState<number | null>(null)
   const [editingContent, setEditingContent] = useState('')
   const [editorLanguage, setEditorLanguage] = useState<'json' | 'yaml' | 'text'>('json')
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
+  const [dragDirection, setDragDirection] = useState<'up' | 'down' | null>(null)
 
   // 将字典转换为数组格式
   useEffect(() => {
@@ -71,6 +74,88 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
     updateConfig(newItems)
   }
 
+  // 拖拽排序处理函数
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    setDraggedIndex(index)
+    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.dropEffect = 'move'
+    // 设置拖拽图像为透明，使用 CSS 样式显示拖拽状态
+    const img = new Image()
+    img.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'
+    e.dataTransfer.setDragImage(img, 0, 0)
+  }
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault()
+    e.stopPropagation()
+    e.dataTransfer.dropEffect = 'move'
+    if (draggedIndex !== null && draggedIndex !== index) {
+      setDragOverIndex(index)
+      // 判断拖拽方向：向下拖动时，插入线在下方；向上拖动时，插入线在上方
+      if (draggedIndex < index) {
+        setDragDirection('down') // 向下拖动，插入线在下方
+      } else {
+        setDragDirection('up') // 向上拖动，插入线在上方
+      }
+    }
+  }
+
+  const handleDragEnter = (e: React.DragEvent, index: number) => {
+    e.preventDefault()
+    e.stopPropagation()
+    e.dataTransfer.dropEffect = 'move'
+    if (draggedIndex !== null && draggedIndex !== index) {
+      setDragOverIndex(index)
+      // 判断拖拽方向
+      if (draggedIndex < index) {
+        setDragDirection('down') // 向下拖动，插入线在下方
+      } else {
+        setDragDirection('up') // 向上拖动，插入线在上方
+      }
+    }
+  }
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    // 只有当真正离开整个元素时才清除 drag-over 状态
+    const target = e.currentTarget as HTMLElement
+    const relatedTarget = e.relatedTarget as HTMLElement
+    // 检查是否真的离开了元素（不是进入子元素）
+    if (!target.contains(relatedTarget)) {
+      setDragOverIndex(null)
+      setDragDirection(null)
+    }
+  }
+
+  const handleDrop = (e: React.DragEvent, dropIndex: number) => {
+    e.preventDefault()
+    e.stopPropagation()
+    
+    if (draggedIndex === null || draggedIndex === dropIndex) {
+      setDraggedIndex(null)
+      setDragOverIndex(null)
+      setDragDirection(null)
+      return
+    }
+
+    // 重新排序 items
+    const newItems = [...items]
+    const draggedItem = newItems[draggedIndex]
+    newItems.splice(draggedIndex, 1)
+    newItems.splice(dropIndex, 0, draggedItem)
+    
+    setItems(newItems)
+    updateConfig(newItems)
+    setDraggedIndex(null)
+    setDragOverIndex(null)
+    setDragDirection(null)
+  }
+
+  const handleDragEnd = () => {
+    setDraggedIndex(null)
+    setDragOverIndex(null)
+    setDragDirection(null)
+  }
+
   const handleOpenEditor = (index: number) => {
     const item = items[index]
     setEditingIndex(index)
@@ -117,49 +202,164 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
     setEditingContent('')
   }
 
+  // 当 Modal 打开时，阻止 Del 键事件冒泡，并支持 Ctrl+Enter 保存
+  useEffect(() => {
+    if (!editorModalVisible) {
+      return
+    }
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // 检查事件目标是否在 Modal 内部
+      const target = e.target as HTMLElement
+      const modalElement = document.querySelector('.ant-modal-content')
+      
+      if (!modalElement || !modalElement.contains(target)) {
+        return
+      }
+
+      // Ctrl+Enter 或 Cmd+Enter (Mac) 保存
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault()
+        e.stopPropagation()
+        // 直接调用保存逻辑，确保使用最新的状态
+        if (editingIndex !== null) {
+          const newItems = [...items]
+          if (editingIndex >= 0 && editingIndex < newItems.length) {
+            newItems[editingIndex].value = editingContent
+            setItems(newItems)
+            updateConfig(newItems)
+          }
+          setEditorModalVisible(false)
+          setEditingIndex(null)
+          setEditingContent('')
+        }
+        return
+      }
+
+      // 当按下 Del 或 Backspace 键时，阻止事件冒泡
+      // 这样就不会触发父组件的删除节点操作
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.stopPropagation()
+        // 不阻止默认行为，让编辑器正常处理删除操作
+      }
+    }
+
+    // 使用 capture 模式捕获事件，在父组件之前处理
+    document.addEventListener('keydown', handleKeyDown, true)
+    
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown, true)
+    }
+  }, [editorModalVisible, editingIndex, editingContent, items, updateConfig])
+
   return (
     <div className="config-editor">
       <div className="config-editor-items">
-        {items.map((item, index) => (
-          <div key={index} className="config-editor-item">
-            <div className="config-editor-item-label">
-              <Input
-                placeholder="配置项名称"
-                value={item.key}
-                onChange={(e) => handleKeyChange(index, e.target.value)}
-                style={{ width: '100%' }}
-              />
+        {items.map((item, index) => {
+          // 判断是否在当前 item 的上方或下方显示插入线
+          const showInsertLineAbove = dragOverIndex === index && dragDirection === 'up'
+          const showInsertLineBelow = dragOverIndex === index && dragDirection === 'down'
+          
+          return (
+          <React.Fragment key={index}>
+            {/* 向上拖动时，在当前 item 上方显示插入线 */}
+            {showInsertLineAbove && (
+              <div className="config-editor-insert-line"></div>
+            )}
+            <div 
+              className={`config-editor-item ${draggedIndex === index ? 'dragging' : ''} ${dragOverIndex === index ? 'drag-over' : ''}`}
+              onDragOver={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                handleDragOver(e, index)
+              }}
+              onDragEnter={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                handleDragEnter(e, index)
+              }}
+              onDragLeave={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                handleDragLeave(e)
+              }}
+              onDrop={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                handleDrop(e, index)
+              }}
+            >
+            <div 
+              className="config-editor-item-drag-handle" 
+              title="拖动排序"
+              draggable
+              onDragStart={(e) => {
+                e.stopPropagation()
+                handleDragStart(e, index)
+              }}
+              onDragEnd={handleDragEnd}
+            >
+              <HolderOutlined style={{ color: '#999', cursor: 'move' }} />
             </div>
-            <div className="config-editor-item-value">
-              <Input
-                placeholder="配置值"
-                value={item.value}
-                onChange={(e) => handleValueChange(index, e.target.value)}
-                style={{ flex: 1 }}
-                suffix={
-                  <Button
-                    type="text"
-                    size="small"
-                    icon={<MoreOutlined />}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleOpenEditor(index)
-                    }}
-                    title="打开编辑器"
-                    style={{ padding: 0, height: 'auto', border: 'none', boxShadow: 'none' }}
-                  />
-                }
-              />
-              <Button
-                type="text"
-                danger
-                icon={<DeleteOutlined />}
-                onClick={() => handleRemoveItem(index)}
-                title="删除此项"
-              />
+            <div 
+              className="config-editor-item-content"
+            >
+              <div className="config-editor-item-label">
+                <Input
+                  placeholder="配置项名称"
+                  value={item.key}
+                  onChange={(e) => handleKeyChange(index, e.target.value)}
+                  onDragStart={(e) => e.stopPropagation()}
+                  onDragOver={(e) => e.stopPropagation()}
+                  style={{ width: '100%' }}
+                />
+              </div>
+              <div className="config-editor-item-value">
+                <Input
+                  placeholder="配置值"
+                  value={item.value}
+                  onChange={(e) => handleValueChange(index, e.target.value)}
+                  onDragStart={(e) => e.stopPropagation()}
+                  onDragOver={(e) => e.stopPropagation()}
+                  style={{ flex: 1 }}
+                  suffix={
+                    <Button
+                      type="text"
+                      size="small"
+                      icon={<MoreOutlined />}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleOpenEditor(index)
+                      }}
+                      onDragStart={(e) => e.stopPropagation()}
+                      onDragOver={(e) => e.stopPropagation()}
+                      title="打开编辑器"
+                      style={{ padding: 0, height: 'auto', border: 'none', boxShadow: 'none' }}
+                    />
+                  }
+                />
+                <Button
+                  type="text"
+                  danger
+                  icon={<DeleteOutlined />}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleRemoveItem(index)
+                  }}
+                  onDragStart={(e) => e.stopPropagation()}
+                  onDragOver={(e) => e.stopPropagation()}
+                  title="删除此项"
+                />
+              </div>
             </div>
           </div>
-        ))}
+          {/* 向下拖动时，在当前 item 下方显示插入线 */}
+          {showInsertLineBelow && (
+            <div className="config-editor-insert-line"></div>
+          )}
+          </React.Fragment>
+          )
+        })}
       </div>
       <Button
         type="dashed"
@@ -179,6 +379,7 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
         width={800}
         okText="保存"
         cancelText="取消"
+        keyboard={true}
       >
         <div style={{ marginBottom: 16 }}>
           <Space>

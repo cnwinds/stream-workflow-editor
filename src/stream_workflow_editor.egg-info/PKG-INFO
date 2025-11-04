@@ -20,6 +20,7 @@ Classifier: Programming Language :: Python :: 3.11
 Classifier: Programming Language :: Python :: 3.12
 Requires-Python: >=3.8
 Description-Content-Type: text/markdown
+License-File: LICENSE
 Requires-Dist: fastapi>=0.104.1
 Requires-Dist: uvicorn[standard]>=0.24.0
 Requires-Dist: pydantic>=2.5.0
@@ -32,6 +33,7 @@ Requires-Dist: pytest>=7.0.0; extra == "dev"
 Requires-Dist: pytest-asyncio>=0.21.0; extra == "dev"
 Requires-Dist: black>=23.0.0; extra == "dev"
 Requires-Dist: ruff>=0.1.0; extra == "dev"
+Dynamic: license-file
 
 # 流式工作流可视化编辑器
 
@@ -98,7 +100,7 @@ stream-workflow-editor/
 
 1. **克隆项目**：
 ```bash
-git clone <repository-url>
+git clone https://github.com/cnwinds/stream-workflow-editor.git
 cd stream-workflow-editor
 ```
 
@@ -134,12 +136,16 @@ npm run dev
 
 ```bash
 # 在项目根目录或任意工作目录
+
+# 生产模式（使用已编译的静态文件，前后端同端口 3010）
+stream-workflow start
+# 或只启动后端（也会服务静态文件）
 stream-workflow server
 
-# 或者同时启动前后端（开发模式）
-stream-workflow start
+# 开发模式（前后端分离，前端 3000 端口，后端 3010 端口）
+stream-workflow start --force-client
 
-# 仅启动前端开发服务器
+# 仅启动前端开发服务器（需要后端已启动）
 stream-workflow client
 ```
 
@@ -167,6 +173,10 @@ python -m stream_workflow_editor.api.main
 ```
 
 后端将在 http://localhost:3010 启动（默认配置）
+
+**端口说明：**
+- **生产模式**（已编译静态文件）：前后端都在 `http://localhost:3010`，后端直接提供静态文件
+- **开发模式**（前端开发服务器）：前端在 `http://localhost:3000`，后端在 `http://localhost:3010`，前端通过代理访问后端 API
 
 ## 打包和发布
 
@@ -232,6 +242,7 @@ stream-workflow --help
 - [架构文档](docs/ARCHITECTURE.md) - 项目架构和技术栈说明
 - [使用文档](docs/USAGE.md) - 使用说明和常见问题
 - [API 文档](docs/API.md) - API 接口文档
+- [日志系统](docs/LOGGING.md) - 日志配置和使用指南
 
 ## 许可证
 

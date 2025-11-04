@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react'
+import React, { useEffect, useState, useMemo, useRef } from 'react'
 import { Card, Form, Input, Button, Empty, Tabs, message, Typography, Tag, Alert } from 'antd'
 import { useWorkflowStore } from '@/stores/workflowStore'
 import { nodeApi } from '@/services/api'
@@ -27,6 +27,9 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ nodeId, edgeId }) => 
   const node = nodes.find((n) => n.id === nodeId)
   const nodeType = node?.data?.type || node?.type
   const edge = edgeId ? edges.find((e) => e.id === edgeId) : null
+  
+  // 用于跟踪上一次的节点ID，判断节点是否真正变化
+  const prevNodeIdRef = useRef<string | null>(null)
 
   // 计算连接线的详细信息
   const connectionInfo = useMemo(() => {
@@ -148,27 +151,38 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ nodeId, edgeId }) => 
   }, [nodeId, nodeType]) // 只依赖 nodeId 和 nodeType，不依赖整个 nodes 数组
 
   useEffect(() => {
-    if (node) {
-      form.resetFields()
-      // 设置表单值
-      form.setFieldsValue({
-        id: node.id,
-        type: node.data.type || node.type,
-        label: node.data.label || node.id,
-        config: node.data.config || {},
-      })
+    // 判断节点是否真正变化
+    const currentNodeId = node?.id || null
+    const nodeChanged = prevNodeIdRef.current !== currentNodeId
+    
+    if (nodeChanged) {
+      // 节点变化了，更新引用
+      prevNodeIdRef.current = currentNodeId
       
-      // 生成当前节点的 YAML 片段
-      const nodeYaml = {
-        id: node.id,
-        type: node.data.type || node.type,
-        name: node.data.label || node.id,
-        config: node.data.config || {},
+      if (node) {
+        // 只有当节点变化时才重置表单
+        form.resetFields()
+        // 设置表单值
+        form.setFieldsValue({
+          id: node.id,
+          type: node.data.type || node.type,
+          label: node.data.label || node.id,
+          config: node.data.config || {},
+        })
+        
+        // 生成当前节点的 YAML 片段
+        const nodeYaml = {
+          id: node.id,
+          type: node.data.type || node.type,
+          name: node.data.label || node.id,
+          config: node.data.config || {},
+        }
+        setYamlContent(YamlService.stringify({ workflow: { name: '', nodes: [nodeYaml] } }))
+      } else {
+        // 节点变为 null，清空表单
+        form.resetFields()
+        setYamlContent('')
       }
-      setYamlContent(YamlService.stringify({ workflow: { name: '', nodes: [nodeYaml] } }))
-    } else {
-      form.resetFields()
-      setYamlContent('')
     }
   }, [node, form])
 

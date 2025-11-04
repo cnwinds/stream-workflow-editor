@@ -1,3 +1,4 @@
+LICENSE
 MANIFEST.in
 README.md
 pyproject.toml
@@ -14,6 +15,7 @@ src/stream_workflow_editor.egg-info/requires.txt
 src/stream_workflow_editor.egg-info/top_level.txt
 src/stream_workflow_editor/api/__init__.py
 src/stream_workflow_editor/api/config.py
+src/stream_workflow_editor/api/logger.py
 src/stream_workflow_editor/api/main.py
 src/stream_workflow_editor/api/routes/__init__.py
 src/stream_workflow_editor/api/routes/execute.py
@@ -31,6 +33,6 @@ src/stream_workflow_editor/custom_nodes/__init__.py
 src/stream_workflow_editor/custom_nodes/registry.json
 src/stream_workflow_editor/custom_nodes/templates/node_template.py
 src/stream_workflow_editor/static/index.html
-src/stream_workflow_editor/static/assets/index-CiDQUTao.css
-src/stream_workflow_editor/static/assets/index-g13_H-j6.js
-src/stream_workflow_editor/static/assets/index-g13_H-j6.js.map
+src/stream_workflow_editor/static/assets/index-BmbOAYFH.js
+src/stream_workflow_editor/static/assets/index-BmbOAYFH.js.map
+src/stream_workflow_editor/static/assets/index-vce8w7xP.css

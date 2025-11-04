@@ -18,6 +18,65 @@
   border: 1px solid #d9d9d9;
   border-radius: 4px;
   background: #fafafa;
+  transition: all 0.2s;
+  position: relative;
+}
+
+.config-editor-item.dragging {
+  opacity: 0.5;
+  border: 1px dashed #1890ff;
+  background: #e6f7ff;
+}
+
+.config-editor-item.drag-over {
+  position: relative;
+}
+
+/* 插入线样式 */
+.config-editor-insert-line {
+  height: 2px;
+  background: #1890ff;
+  margin: 2px 0;
+  border-radius: 1px;
+  flex-shrink: 0;
+}
+
+.config-editor-item-drag-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  flex-shrink: 0;
+  cursor: move;
+  user-select: none;
+  padding: 2px;
+}
+
+.config-editor-item-drag-handle:hover {
+  color: #1890ff !important;
+}
+
+.config-editor-item-drag-handle:active {
+  cursor: grabbing;
+}
+
+.config-editor-item-content {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  pointer-events: auto;
+}
+
+.config-editor-item-content * {
+  pointer-events: auto;
+}
+
+.config-editor-item-content input,
+.config-editor-item-content button {
+  pointer-events: auto;
 }
 
 .config-editor-item-label {

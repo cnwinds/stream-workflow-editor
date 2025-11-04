@@ -11,6 +11,21 @@ import uvicorn
 def start_server(work_dir=None, nodes_dir=None, config_file=None, project_root=None, host=None, port=None, reload=False):
     """启动服务器"""
     try:
+        # 检测是否为生产模式（是否有已编译的静态文件）
+        package_dir = Path(__file__).parent
+        static_dir = package_dir / "static"
+        has_static_files = static_dir.exists() and (static_dir / "index.html").exists()
+        
+        # 如果用户没有明确指定端口，根据模式自动设置
+        # 生产模式：3000，开发模式：3010
+        if port is None:
+            if has_static_files:
+                # 生产模式：前后端共用 3000 端口
+                port = 3000
+            else:
+                # 开发模式：后端使用 3010 端口
+                port = 3010
+        
         # 初始化配置
         config.initialize(
             work_dir=work_dir,
