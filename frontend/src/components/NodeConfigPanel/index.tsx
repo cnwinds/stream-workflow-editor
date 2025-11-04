@@ -149,6 +149,7 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ nodeId, edgeId }) => 
 
   useEffect(() => {
     if (node) {
+      form.resetFields()
       // 设置表单值
       form.setFieldsValue({
         id: node.id,
