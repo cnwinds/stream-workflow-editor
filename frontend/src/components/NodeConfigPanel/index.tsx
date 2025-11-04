@@ -5,10 +5,10 @@ import { nodeApi } from '@/services/api'
 import Editor from '@monaco-editor/react'
 import { YamlService } from '@/services/yamlService'
 import NodeCreatorModal from '@/components/NodeCreator'
+import ConfigEditor from '@/components/ConfigEditor'
 import { WorkflowValidator } from '@/utils/validators'
 import './NodeConfigPanel.css'
 
-const { TextArea } = Input
 const { Text } = Typography
 
 interface NodeConfigPanelProps {
@@ -154,7 +154,7 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ nodeId, edgeId }) => 
         id: node.id,
         type: node.data.type || node.type,
         label: node.data.label || node.id,
-        config: JSON.stringify(node.data.config || {}, null, 2),
+        config: node.data.config || {},
       })
       
       // 生成当前节点的 YAML 片段
@@ -173,16 +173,8 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ nodeId, edgeId }) => 
 
   const handleFormChange = (_changedValues: any, allValues: any) => {
     if (node) {
-      // 解析 config JSON
-      let config = {}
-      try {
-        if (allValues.config) {
-          config = JSON.parse(allValues.config)
-        }
-      } catch {
-        // 如果 JSON 无效，保持原配置
-        config = node.data.config || {}
-      }
+      // config 现在是字典格式，直接使用
+      const config = allValues.config || {}
       
       updateNodeData(node.id, {
         label: allValues.label || node.data.label,
@@ -194,15 +186,8 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ nodeId, edgeId }) => 
   const handleSave = () => {
     form.validateFields().then((values) => {
       if (node) {
-        let config = {}
-        try {
-          if (values.config) {
-            config = JSON.parse(values.config)
-          }
-        } catch (e) {
-          message.error('配置 JSON 格式错误')
-          return
-        }
+        // config 现在是字典格式，直接使用
+        const config = values.config || {}
         
         updateNodeData(node.id, {
           label: values.label || node.data.label,
@@ -263,43 +248,43 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ nodeId, edgeId }) => 
 
           {/* 合并成一张表，三列布局：属性标签 | 源端口 | 目标端口 */}
           <div style={{ border: '1px solid #d9d9d9', borderRadius: 4 }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
               <tbody>
                 <tr style={{ borderBottom: '1px solid #f0f0f0' }}>
-                  <td style={{ padding: '8px 12px', fontWeight: 'bold', width: 100, background: '#fafafa', borderRight: '1px solid #f0f0f0' }}>节点</td>
-                  <td style={{ padding: '8px 12px', wordBreak: 'break-word' }}>
+                  <td style={{ padding: '6px 8px', fontWeight: 'bold', width: 100, background: '#fafafa', borderRight: '1px solid #f0f0f0', fontSize: 12 }}>节点</td>
+                  <td style={{ padding: '6px 8px', wordBreak: 'break-word', fontSize: 12 }}>
                     <div>
-                      <div style={{ color: '#1890ff', fontWeight: 500, marginBottom: 4 }}>源端口</div>
+                      <div style={{ color: '#1890ff', fontWeight: 500, marginBottom: 2, fontSize: 11 }}>源端口</div>
                       {sourceNode.data?.label || sourceNode.id}
                     </div>
                   </td>
-                  <td style={{ padding: '8px 12px', wordBreak: 'break-word' }}>
+                  <td style={{ padding: '6px 8px', wordBreak: 'break-word', fontSize: 12 }}>
                     <div>
-                      <div style={{ color: '#52c41a', fontWeight: 500, marginBottom: 4 }}>目标端口</div>
+                      <div style={{ color: '#52c41a', fontWeight: 500, marginBottom: 2, fontSize: 11 }}>目标端口</div>
                       {targetNode.data?.label || targetNode.id}
                     </div>
                   </td>
                 </tr>
                 <tr style={{ borderBottom: '1px solid #f0f0f0' }}>
-                  <td style={{ padding: '8px 12px', fontWeight: 'bold', background: '#fafafa', borderRight: '1px solid #f0f0f0' }}>节点类型</td>
-                  <td style={{ padding: '8px 12px', wordBreak: 'break-word' }}>{sourceNode.data?.type || sourceNode.type}</td>
-                  <td style={{ padding: '8px 12px', wordBreak: 'break-word' }}>{targetNode.data?.type || targetNode.type}</td>
+                  <td style={{ padding: '6px 8px', fontWeight: 'bold', background: '#fafafa', borderRight: '1px solid #f0f0f0', fontSize: 12 }}>节点类型</td>
+                  <td style={{ padding: '6px 8px', wordBreak: 'break-word', fontSize: 12 }}>{sourceNode.data?.type || sourceNode.type}</td>
+                  <td style={{ padding: '6px 8px', wordBreak: 'break-word', fontSize: 12 }}>{targetNode.data?.type || targetNode.type}</td>
                 </tr>
                 <tr style={{ borderBottom: '1px solid #f0f0f0' }}>
-                  <td style={{ padding: '8px 12px', fontWeight: 'bold', background: '#fafafa', borderRight: '1px solid #f0f0f0' }}>端口名称</td>
-                  <td style={{ padding: '8px 12px', wordBreak: 'break-word' }}>{sourceHandle}</td>
-                  <td style={{ padding: '8px 12px', wordBreak: 'break-word' }}>{targetHandle}</td>
+                  <td style={{ padding: '6px 8px', fontWeight: 'bold', background: '#fafafa', borderRight: '1px solid #f0f0f0', fontSize: 12 }}>端口名称</td>
+                  <td style={{ padding: '6px 8px', wordBreak: 'break-word', fontSize: 12 }}>{sourceHandle}</td>
+                  <td style={{ padding: '6px 8px', wordBreak: 'break-word', fontSize: 12 }}>{targetHandle}</td>
                 </tr>
                 <tr style={{ borderBottom: '1px solid #f0f0f0' }}>
-                  <td style={{ padding: '8px 12px', fontWeight: 'bold', background: '#fafafa', borderRight: '1px solid #f0f0f0' }}>端口类型</td>
-                  <td style={{ padding: '8px 12px', wordBreak: 'break-word' }}>
+                  <td style={{ padding: '6px 8px', fontWeight: 'bold', background: '#fafafa', borderRight: '1px solid #f0f0f0', fontSize: 12 }}>端口类型</td>
+                  <td style={{ padding: '6px 8px', wordBreak: 'break-word', fontSize: 12 }}>
                     {sourceParam?.isStreaming ? (
                       <Tag color="green">流式</Tag>
                     ) : (
                       <Tag color="default">非流式</Tag>
                     )}
                   </td>
-                  <td style={{ padding: '8px 12px', wordBreak: 'break-word' }}>
+                  <td style={{ padding: '6px 8px', wordBreak: 'break-word', fontSize: 12 }}>
                     {targetParam?.isStreaming ? (
                       <Tag color="green">流式</Tag>
                     ) : (
@@ -308,11 +293,11 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ nodeId, edgeId }) => 
                   </td>
                 </tr>
                 <tr style={{ borderBottom: '1px solid #f0f0f0' }}>
-                  <td style={{ padding: '8px 12px', fontWeight: 'bold', background: '#fafafa', borderRight: '1px solid #f0f0f0', verticalAlign: 'top' }}>Schema</td>
-                  <td style={{ padding: '8px 12px', wordBreak: 'break-word', verticalAlign: 'top' }}>
+                  <td style={{ padding: '6px 8px', fontWeight: 'bold', background: '#fafafa', borderRight: '1px solid #f0f0f0', verticalAlign: 'top', fontSize: 12 }}>Schema</td>
+                  <td style={{ padding: '6px 8px', wordBreak: 'break-word', verticalAlign: 'top', fontSize: 12 }}>
                     {sourceParam ? (
                       <div style={{ 
-                        fontSize: 12, 
+                        fontSize: 11, 
                         maxHeight: 200, 
                         overflowY: 'auto',
                         overflowX: 'visible',
@@ -322,13 +307,13 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ nodeId, edgeId }) => 
                         {JSON.stringify(sourceParam.schema || {}, null, 2)}
                       </div>
                     ) : (
-                      <Text type="danger">端口不存在</Text>
+                      <Text type="danger" style={{ fontSize: 12 }}>端口不存在</Text>
                     )}
                   </td>
-                  <td style={{ padding: '8px 12px', wordBreak: 'break-word', verticalAlign: 'top' }}>
+                  <td style={{ padding: '6px 8px', wordBreak: 'break-word', verticalAlign: 'top', fontSize: 12 }}>
                     {targetParam ? (
                       <div style={{ 
-                        fontSize: 12, 
+                        fontSize: 11, 
                         maxHeight: 200, 
                         overflowY: 'auto',
                         overflowX: 'visible',
@@ -338,14 +323,14 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ nodeId, edgeId }) => 
                         {JSON.stringify(targetParam.schema || {}, null, 2)}
                       </div>
                     ) : (
-                      <Text type="danger">端口不存在</Text>
+                      <Text type="danger" style={{ fontSize: 12 }}>端口不存在</Text>
                     )}
                   </td>
                 </tr>
                 {sourceParam && targetParam && Object.keys(sourceParam.schema || {}).length > 0 && (
                   <tr>
-                    <td style={{ padding: '8px 12px', fontWeight: 'bold', background: '#fafafa', borderRight: '1px solid #f0f0f0' }}>字段对比</td>
-                    <td style={{ padding: '8px 12px', wordBreak: 'break-word' }}>
+                    <td style={{ padding: '6px 8px', fontWeight: 'bold', background: '#fafafa', borderRight: '1px solid #f0f0f0', fontSize: 12 }}>字段对比</td>
+                    <td style={{ padding: '6px 8px', wordBreak: 'break-word', fontSize: 12 }}>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                         {Object.entries(sourceParam.schema || {}).map(([key, value]) => (
                           <Tag key={key} style={{ margin: 0 }}>
@@ -354,7 +339,7 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ nodeId, edgeId }) => 
                         ))}
                       </div>
                     </td>
-                    <td style={{ padding: '8px 12px', wordBreak: 'break-word' }}>
+                    <td style={{ padding: '6px 8px', wordBreak: 'break-word', fontSize: 12 }}>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                         {Object.entries(targetParam.schema || {}).map(([key, value]) => {
                           const sourceValue = sourceParam.schema?.[key]
@@ -403,6 +388,7 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ nodeId, edgeId }) => 
       <Card 
         title={`节点配置: ${node.data.label || node.id}`}
         size="small"
+        className="node-config-card"
       >
         <Tabs
           defaultActiveKey="info"
@@ -429,16 +415,10 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ nodeId, edgeId }) => 
                     />
                   </Form.Item>
                   <Form.Item label="节点配置" name="config">
-                    <TextArea 
-                      rows={8} 
+                    <ConfigEditor
                       placeholder="输入节点配置（JSON格式）"
-                      onChange={(e) => {
-                        try {
-                          const config = JSON.parse(e.target.value)
-                          updateNodeData(node.id, { config })
-                        } catch {
-                          // 忽略 JSON 解析错误，允许用户继续编辑
-                        }
+                      onChange={(config) => {
+                        updateNodeData(node.id, { config })
                       }}
                     />
                   </Form.Item>

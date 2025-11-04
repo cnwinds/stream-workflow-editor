@@ -1,0 +1,133 @@
+.config-editor {
+  width: 100%;
+  font-size: 12px;
+}
+
+.config-editor-items {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.config-editor-item {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  background: #fafafa;
+}
+
+.config-editor-item-label {
+  width: 100px;
+  flex-shrink: 0;
+}
+
+.config-editor-item-label .ant-input {
+  font-size: 12px;
+  padding: 0 8px !important;
+  padding-left: 8px !important;
+  padding-right: 8px !important;
+  height: 28px !important;
+  line-height: 28px !important;
+  box-sizing: border-box;
+  border: none;
+  outline: none;
+  vertical-align: middle;
+}
+
+.config-editor-item-value {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+.config-editor-item-value .ant-input-affix-wrapper {
+  height: 28px !important;
+  box-sizing: border-box;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  padding-left: 0 !important;
+}
+
+.config-editor-item-value .ant-input-affix-wrapper .ant-input {
+  height: 28px !important;
+  line-height: 28px !important;
+  box-sizing: border-box;
+  padding: 0 8px !important;
+  padding-left: 8px !important;
+  padding-right: 8px !important;
+  font-size: 12px;
+  border: none;
+  outline: none;
+  vertical-align: middle;
+}
+
+.config-editor-item-value .ant-input-affix-wrapper {
+  padding-right: 0 !important;
+}
+
+.config-editor-item-value .ant-input-suffix {
+  margin-left: 0;
+  padding: 0 !important;
+  display: flex;
+  align-items: center;
+  height: 100%;
+  padding-right: 0 !important;
+}
+
+.config-editor-item-value .ant-input-suffix .ant-btn {
+  padding: 0;
+  height: 18px;
+  width: 18px;
+  min-height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  box-shadow: none;
+  margin: 0;
+}
+
+.config-editor-item-value .ant-input-suffix .ant-btn .anticon {
+  font-size: 12px;
+}
+
+.config-editor-item-value .ant-input-suffix .ant-btn:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.config-editor-item-value .ant-btn {
+  font-size: 12px;
+  padding: 0 4px;
+  height: 28px !important;
+  width: 24px;
+  min-width: 24px;
+  min-height: 28px !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+.config-editor .ant-btn-dashed {
+  font-size: 12px;
+  padding: 4px 12px;
+  height: auto;
+  min-height: 28px;
+  margin-top: 4px;
+}
+
+.config-editor-modal-content {
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
