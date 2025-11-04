@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useEffect, useMemo } from 'react'
+import React, { useCallback, useRef, useEffect, useMemo, createContext, useContext } from 'react'
 import ReactFlow, {
   Background,
   Controls,
@@ -25,6 +25,19 @@ const edgeTypes = {
   smart: SmartEdge,
 }
 
+// 创建 Context 用于在 WorkflowCanvas 和 CustomNode 之间共享 handle 悬停状态
+interface HandleHoverContextType {
+  onHandleMouseEnter: (nodeId: string, handleId: string, handleType: 'source' | 'target') => void
+  onHandleMouseLeave: () => void
+}
+
+const HandleHoverContext = createContext<HandleHoverContextType | null>(null)
+
+export const useHandleHover = () => {
+  const context = useContext(HandleHoverContext)
+  return context
+}
+
 interface WorkflowCanvasProps {
   onNodeSelect?: (nodeId: string | null) => void
   selectedNodeId?: string | null
@@ -39,6 +52,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
   const reactFlowInstance = useRef<ReactFlowInstance | null>(null)
   const [selectedEdgeId, setSelectedEdgeId] = React.useState<string | null>(null)
   const [hoveredEdgeId, setHoveredEdgeId] = React.useState<string | null>(null)
+  const [hoveredHandleEdges, setHoveredHandleEdges] = React.useState<Set<string>>(new Set())
   const {
     nodes,
     edges,
@@ -232,6 +246,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
     // 分离选中的、高亮的和普通的连线
     const selectedEdges: Edge[] = []
     const hoveredEdges: Edge[] = []
+    const handleHoveredEdges: Edge[] = []
     const normalEdges: Edge[] = []
     
     edgesArray.forEach((edge) => {
@@ -239,14 +254,16 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
         selectedEdges.push(edge)
       } else if (edge.id === hoveredEdgeId) {
         hoveredEdges.push(edge)
+      } else if (hoveredHandleEdges.has(edge.id)) {
+        handleHoveredEdges.push(edge)
       } else {
         normalEdges.push(edge)
       }
     })
     
-    // 排序：普通连线 -> 高亮连线 -> 选中连线（最后渲染的在最上层）
-    return [...normalEdges, ...hoveredEdges, ...selectedEdges]
-  }, [edges, selectedEdgeId, hoveredEdgeId])
+    // 排序：普通连线 -> handle悬停高亮连线 -> 悬停连线 -> 选中连线（最后渲染的在最上层）
+    return [...normalEdges, ...handleHoveredEdges, ...hoveredEdges, ...selectedEdges]
+  }, [edges, selectedEdgeId, hoveredEdgeId, hoveredHandleEdges])
 
   // 处理连线鼠标事件
   const handleEdgeMouseEnter = useCallback((_event: React.MouseEvent, edge: Edge) => {
@@ -257,16 +274,44 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
     setHoveredEdgeId(null)
   }, [])
 
+  // 处理 Handle 悬停事件
+  const handleHandleMouseEnter = useCallback((nodeId: string, handleId: string, handleType: 'source' | 'target') => {
+    // 找到所有连接到该 handle 的边
+    const connectedEdges = edges.filter((edge) => {
+      if (handleType === 'source') {
+        return edge.source === nodeId && edge.sourceHandle === handleId
+      } else {
+        return edge.target === nodeId && edge.targetHandle === handleId
+      }
+    })
+    
+    // 收集这些边的 ID
+    const edgeIds = new Set(connectedEdges.map((edge) => edge.id))
+    setHoveredHandleEdges(edgeIds)
+  }, [edges])
+
+  const handleHandleMouseLeave = useCallback(() => {
+    setHoveredHandleEdges(new Set())
+  }, [])
+
+  // Handle 悬停 Context 值
+  const handleHoverContextValue = useMemo(() => ({
+    onHandleMouseEnter: handleHandleMouseEnter,
+    onHandleMouseLeave: handleHandleMouseLeave,
+  }), [handleHandleMouseEnter, handleHandleMouseLeave])
+
   return (
     <div style={{ width: '100%', height: '100%' }}>
       <ReactFlowProvider>
-        <ReactFlow
+        <HandleHoverContext.Provider value={handleHoverContextValue}>
+          <ReactFlow
           nodes={nodes}
           edges={sortedEdges.map((edge) => {
             const { label, ...edgeWithoutLabel } = edge
             const isValid = !invalidEdgeIds.includes(edge.id)
             const isSelected = edge.id === selectedEdgeId
             const isHovered = edge.id === hoveredEdgeId
+            const isHandleHovered = hoveredHandleEdges.has(edge.id)
             
             return {
               ...edgeWithoutLabel,
@@ -277,13 +322,14 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
               style: {
                 ...edgeOptions.style,
                 stroke: isValid ? undefined : '#ff4d4f', // 红色表示错误
-                strokeWidth: isValid ? (isSelected ? 3 : (isHovered ? 2.5 : 2)) : 3, // 选中/高亮时稍微粗一点
+                strokeWidth: isValid ? (isSelected ? 3 : (isHovered ? 2.5 : (isHandleHovered ? 2.5 : 2))) : 3, // 选中/高亮时稍微粗一点
               },
               // 添加数据标记，方便SmartEdge组件使用
               data: {
                 isValid,
                 isSelected,
                 isHovered,
+                isHandleHovered,
               },
             }
           })}
@@ -310,6 +356,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
           <Controls />
           <EnhancedMiniMap reactFlowInstance={reactFlowInstance.current} />
         </ReactFlow>
+        </HandleHoverContext.Provider>
       </ReactFlowProvider>
     </div>
   )

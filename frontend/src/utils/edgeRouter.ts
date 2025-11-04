@@ -243,7 +243,7 @@ export function calculateSmartPath(
   }
 
   // 1. 配置参数
-  const GAP = 20 // 与节点的间隙
+  const GAP = 40 // 与节点的间隙
 
   // 2. 判断源点和目标点的相对位置
   const dx = target.x - source.x
@@ -484,17 +484,74 @@ export function calculateSmartPath(
 }
 
 /**
- * 生成 SVG 路径字符串（使用直线连接）
+ * 生成圆角路径段（参考 React Flow 的 getSmoothStepPath 实现）
+ */
+function createRoundedCorner(
+  p1: Point,
+  p2: Point,
+  p3: Point,
+  radius: number
+): string {
+  const dx1 = p2.x - p1.x
+  const dy1 = p2.y - p1.y
+  const dx2 = p3.x - p2.x
+  const dy2 = p3.y - p2.y
+
+  const len1 = Math.sqrt(dx1 * dx1 + dy1 * dy1)
+  const len2 = Math.sqrt(dx2 * dx2 + dy2 * dy2)
+
+  if (len1 === 0 || len2 === 0) {
+    return `L ${p2.x} ${p2.y}`
+  }
+
+  // 归一化方向向量
+  const ux1 = dx1 / len1
+  const uy1 = dy1 / len1
+  const ux2 = dx2 / len2
+  const uy2 = dy2 / len2
+
+  // 计算实际使用的半径（不超过线段长度的一半）
+  const r = Math.min(radius, len1 / 2, len2 / 2)
+
+  // 计算圆角的起点和终点
+  const cornerStartX = p2.x - ux1 * r
+  const cornerStartY = p2.y - uy1 * r
+  const cornerEndX = p2.x + ux2 * r
+  const cornerEndY = p2.y + uy2 * r
+
+  // 返回直线到圆角起点 + 贝塞尔曲线圆角
+  return `L ${cornerStartX} ${cornerStartY} Q ${p2.x} ${p2.y} ${cornerEndX} ${cornerEndY}`
+}
+
+/**
+ * 生成 SVG 路径字符串（使用圆角连接，参考 React Flow 的 getSmoothStepPath）
  */
 export function generatePathString(path: Point[]): string {
+  if (path.length < 2) {
+    return ''
+  }
+
   if (path.length === 2) {
     return `M ${path[0].x} ${path[0].y} L ${path[1].x} ${path[1].y}`
   }
 
+  const RADIUS = 8 // 圆角半径，与 React Flow 的 borderRadius 类似
+
   let d = `M ${path[0].x} ${path[0].y}`
   
-  for (let i = 1; i < path.length; i++) {
-    d += ` L ${path[i].x} ${path[i].y}`
+  // 处理每个线段，在转角处创建圆角
+  for (let i = 0; i < path.length - 1; i++) {
+    const curr = path[i]
+    const next = path[i + 1]
+    const nextNext = path[i + 2]
+
+    // 如果存在下一个点，说明 next 是一个转角点，需要创建圆角
+    if (nextNext) {
+      d += ' ' + createRoundedCorner(curr, next, nextNext, RADIUS)
+    } else {
+      // 最后一个线段，直接画直线到终点
+      d += ` L ${next.x} ${next.y}`
+    }
   }
 
   return d

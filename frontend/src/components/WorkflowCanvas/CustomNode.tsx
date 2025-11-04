@@ -3,6 +3,7 @@ import { Handle, Position, NodeProps } from 'reactflow'
 import { NodeType, ParameterSchema } from '@/types/node'
 import { nodeApi } from '@/services/api'
 import { useWorkflowStore } from '@/stores/workflowStore'
+import { useHandleHover } from './index'
 import './CustomNode.css'
 
 interface CustomNodeData {
@@ -20,6 +21,7 @@ const CustomNode: React.FC<NodeProps<CustomNodeData>> = ({ data, selected, id })
   const [inputParams, setInputParams] = useState<Record<string, ParameterSchema>>(data.inputParams || {})
   const [outputParams, setOutputParams] = useState<Record<string, ParameterSchema>>(data.outputParams || {})
   const { updateNodeData } = useWorkflowStore()
+  const handleHover = useHandleHover()
   
   const nodeType = data.nodeType
   // 优先使用 nodeType 中的 executionMode，如果没有则尝试从 data 中获取，最后使用默认值
@@ -190,7 +192,12 @@ const CustomNode: React.FC<NodeProps<CustomNodeData>> = ({ data, selected, id })
           {inputParamsList.length > 0 && (
             <div className="custom-node-inputs">
               {inputParamsList.map((param) => (
-                <div key={`input-${param.name}`} className="custom-node-param">
+                <div 
+                  key={`input-${param.name}`} 
+                  className="custom-node-param"
+                  onMouseEnter={() => handleHover?.onHandleMouseEnter(id, param.name, 'target')}
+                  onMouseLeave={() => handleHover?.onHandleMouseLeave()}
+                >
                   <Handle
                     type="target"
                     position={Position.Left}
@@ -212,7 +219,12 @@ const CustomNode: React.FC<NodeProps<CustomNodeData>> = ({ data, selected, id })
           {outputParamsList.length > 0 && (
             <div className="custom-node-outputs">
               {outputParamsList.map((param) => (
-                <div key={`output-${param.name}`} className="custom-node-param">
+                <div 
+                  key={`output-${param.name}`} 
+                  className="custom-node-param"
+                  onMouseEnter={() => handleHover?.onHandleMouseEnter(id, param.name, 'source')}
+                  onMouseLeave={() => handleHover?.onHandleMouseLeave()}
+                >
                   <Handle
                     type="source"
                     position={Position.Right}
