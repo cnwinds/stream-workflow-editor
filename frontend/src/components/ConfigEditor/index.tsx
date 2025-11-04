@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Input, Button, Modal, Space, Form } from 'antd'
+import { Input, Button, Modal, Space } from 'antd'
 import { MoreOutlined, PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import Editor from '@monaco-editor/react'
 import './ConfigEditor.css'
@@ -15,13 +15,12 @@ interface ConfigEditorProps {
 const ConfigEditor: React.FC<ConfigEditorProps> = ({
   value = {},
   onChange,
-  placeholder = '输入节点配置（JSON格式）',
 }) => {
   const [items, setItems] = useState<Array<{ key: string; value: any }>>([])
   const [editorModalVisible, setEditorModalVisible] = useState(false)
   const [editingIndex, setEditingIndex] = useState<number | null>(null)
   const [editingContent, setEditingContent] = useState('')
-  const [editorLanguage, setEditorLanguage] = useState<'json' | 'yaml'>('json')
+  const [editorLanguage, setEditorLanguage] = useState<'json' | 'yaml' | 'text'>('json')
 
   // 将字典转换为数组格式
   useEffect(() => {
@@ -77,11 +76,23 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
     setEditingIndex(index)
     setEditingContent(item.value)
     // 尝试判断内容类型
+    // 如果内容看起来像 JSON，使用 JSON；否则默认使用 Text
     try {
-      JSON.parse(item.value)
-      setEditorLanguage('json')
+      const parsed = JSON.parse(item.value)
+      // 如果解析成功且是对象或数组，使用 JSON
+      if (typeof parsed === 'object') {
+        setEditorLanguage('json')
+      } else {
+        setEditorLanguage('text')
+      }
     } catch {
-      setEditorLanguage('yaml')
+      // 如果解析失败，检查是否包含 YAML 特征（如 : 和 - ）
+      const trimmed = item.value.trim()
+      if (trimmed.includes(':') || trimmed.startsWith('-') || trimmed.includes('---')) {
+        setEditorLanguage('yaml')
+      } else {
+        setEditorLanguage('text')
+      }
     }
     setEditorModalVisible(true)
   }
@@ -186,21 +197,38 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
             >
               YAML
             </Button>
+            <Button
+              type={editorLanguage === 'text' ? 'primary' : 'default'}
+              size="small"
+              onClick={() => setEditorLanguage('text')}
+            >
+              Text
+            </Button>
           </Space>
         </div>
         <div className="config-editor-modal-content">
-          <Editor
-            height="400px"
-            language={editorLanguage}
-            value={editingContent}
-            onChange={(value) => setEditingContent(value || '')}
-            options={{
-              minimap: { enabled: false },
-              fontSize: 12,
-              wordWrap: 'on',
-              automaticLayout: true,
-            }}
-          />
+          {editorLanguage === 'text' ? (
+            <TextArea
+              value={editingContent}
+              onChange={(e) => setEditingContent(e.target.value)}
+              rows={15}
+              placeholder="输入纯文本内容"
+              style={{ fontFamily: 'monospace', fontSize: 12 }}
+            />
+          ) : (
+            <Editor
+              height="400px"
+              language={editorLanguage}
+              value={editingContent}
+              onChange={(value) => setEditingContent(value || '')}
+              options={{
+                minimap: { enabled: false },
+                fontSize: 12,
+                wordWrap: 'on',
+                automaticLayout: true,
+              }}
+            />
+          )}
         </div>
       </Modal>
     </div>
