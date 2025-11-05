@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useEffect, useMemo, createContext, useContext } from 'react'
+import React, { useCallback, useRef, useEffect, useMemo, createContext, useContext, useState } from 'react'
 import ReactFlow, {
   Background,
   Controls,
@@ -7,14 +7,17 @@ import ReactFlow, {
   ReactFlowProvider,
   ReactFlowInstance,
   MarkerType,
+  Connection,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
 import { useWorkflowStore } from '@/stores/workflowStore'
-import { NodeType } from '@/types/node'
+import { NodeType, ParameterSchema } from '@/types/node'
 import { WorkflowValidator } from '@/utils/validators'
+import { nodeApi } from '@/services/api'
 import CustomNode from './CustomNode'
 import SmartEdge from './SmartEdge'
 import EnhancedMiniMap from './EnhancedMiniMap'
+import ConnectionContextMenu from './ConnectionContextMenu'
 import './WorkflowCanvas.css'
 
 const nodeTypes = {
@@ -53,6 +56,23 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
   const [selectedEdgeId, setSelectedEdgeId] = React.useState<string | null>(null)
   const [hoveredEdgeId, setHoveredEdgeId] = React.useState<string | null>(null)
   const [hoveredHandleEdges, setHoveredHandleEdges] = React.useState<Set<string>>(new Set())
+  
+  // 连接上下文菜单相关状态
+  const [connectionMenu, setConnectionMenu] = useState<{
+    visible: boolean
+    x: number
+    y: number
+    sourceNodeId: string
+    sourceHandleId: string
+    targetNodeId: string
+  } | null>(null)
+  
+  // 连接拖拽状态
+  const connectionStartRef = useRef<{
+    sourceNodeId: string
+    sourceHandleId: string
+  } | null>(null)
+  
   const {
     nodes,
     edges,
@@ -65,6 +85,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
     redo,
     canUndo,
     canRedo,
+    updateNodeData,
   } = useWorkflowStore()
 
   // 监听 edges 变化，如果选中的连接线被删除，清除选中状态
@@ -156,7 +177,192 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
     onNodeSelect?.(null)
     setSelectedEdgeId(null)
     onEdgeSelect?.(null)
-  }, [onNodeSelect, onEdgeSelect])
+    // 关闭连接上下文菜单
+    if (connectionMenu) {
+      setConnectionMenu(null)
+    }
+  }, [onNodeSelect, onEdgeSelect, connectionMenu])
+
+  // 处理连接开始
+  const handleConnectStart = useCallback((_event: React.MouseEvent, { nodeId, handleId }: { nodeId: string | null, handleId: string | null }) => {
+    if (nodeId && handleId) {
+      connectionStartRef.current = {
+        sourceNodeId: nodeId,
+        sourceHandleId: handleId,
+      }
+    }
+  }, [])
+
+  // 处理连接结束 - 使用全局 mouseup 事件
+  useEffect(() => {
+    const handleMouseUp = (event: MouseEvent) => {
+      if (!connectionStartRef.current) {
+        return
+      }
+
+      const { sourceNodeId, sourceHandleId } = connectionStartRef.current
+      
+      // 延迟检查，等待 React Flow 的 onConnect 先处理
+      setTimeout(() => {
+        // 如果连接已经成功，connectionStartRef 会被清除
+        if (!connectionStartRef.current || connectionStartRef.current.sourceNodeId !== sourceNodeId) {
+          return
+        }
+
+        // 清除连接状态
+        connectionStartRef.current = null
+
+        // 获取鼠标位置
+        const clientX = event.clientX
+        const clientY = event.clientY
+
+        // 查找鼠标位置下的节点
+        const targetElement = document.elementFromPoint(clientX, clientY)
+        if (!targetElement) {
+          return
+        }
+
+        // 查找最近的节点元素
+        let nodeElement: HTMLElement | null = targetElement as HTMLElement
+        while (nodeElement && !nodeElement.classList.contains('react-flow__node')) {
+          nodeElement = nodeElement.parentElement
+        }
+
+        if (!nodeElement) {
+          return
+        }
+
+        // 获取节点 ID
+        const targetNodeId = nodeElement.getAttribute('data-id')
+        if (!targetNodeId || targetNodeId === sourceNodeId) {
+          return
+        }
+
+        // 检查是否连接到了 handle
+        const handleElement = targetElement.closest('.react-flow__handle')
+        if (handleElement) {
+          // 如果连接到了 handle，正常连接处理会由 onConnect 处理
+          return
+        }
+
+        // 如果没有连接到 handle，显示上下文菜单
+        const sourceNode = nodes.find(n => n.id === sourceNodeId)
+        if (!sourceNode) {
+          return
+        }
+
+        // 获取源输出的参数信息
+        const outputParams = sourceNode.data.outputParams || {}
+        const sourceParam = outputParams[sourceHandleId]
+        if (!sourceParam) {
+          return
+        }
+
+        // 显示上下文菜单
+        setConnectionMenu({
+          visible: true,
+          x: clientX,
+          y: clientY,
+          sourceNodeId,
+          sourceHandleId,
+          targetNodeId,
+        })
+      }, 100)
+    }
+
+    document.addEventListener('mouseup', handleMouseUp)
+    return () => {
+      document.removeEventListener('mouseup', handleMouseUp)
+    }
+  }, [nodes])
+
+  // 处理创建输入参数并连接
+  const handleCreateInputAndConnect = useCallback(async () => {
+    if (!connectionMenu) {
+      return
+    }
+
+    const { sourceNodeId, sourceHandleId, targetNodeId } = connectionMenu
+
+    // 获取源节点和目标节点
+    const sourceNode = nodes.find(n => n.id === sourceNodeId)
+    const targetNode = nodes.find(n => n.id === targetNodeId)
+
+    if (!sourceNode || !targetNode) {
+      return
+    }
+
+    // 获取源输出的参数信息
+    const outputParams = sourceNode.data.outputParams || {}
+    const sourceParam = outputParams[sourceHandleId] as ParameterSchema
+
+    if (!sourceParam) {
+      return
+    }
+
+    // 获取目标节点的输入参数
+    const targetInputParams = targetNode.data.inputParams || {}
+    const targetOutputParams = targetNode.data.outputParams || {}
+
+    // 检查是否已存在同名输入参数
+    if (targetInputParams[sourceHandleId]) {
+      // 如果已存在，直接连接
+      const newConnection: Connection = {
+        source: sourceNodeId,
+        sourceHandle: sourceHandleId,
+        target: targetNodeId,
+        targetHandle: sourceHandleId,
+      }
+      onConnect(newConnection)
+    } else {
+      // 创建新的输入参数（复制源输出的参数）
+      const newInputParams = {
+        ...targetInputParams,
+        [sourceHandleId]: {
+          isStreaming: sourceParam.isStreaming,
+          schema: { ...sourceParam.schema },
+        },
+      }
+
+      // 更新目标节点的输入参数（内存中）
+      updateNodeData(targetNodeId, {
+        inputParams: newInputParams,
+      })
+
+      // 检查目标节点是否为自定义节点，如果是，需要更新服务器端的 Python 代码
+      const targetNodeType = targetNode.data.type
+      if (targetNodeType) {
+        try {
+          // 尝试获取自定义节点信息，如果失败说明不是自定义节点
+          const customNodeInfo = await nodeApi.getCustomNode(targetNodeType)
+          
+          // 如果是自定义节点，更新服务器端的定义
+          if (customNodeInfo) {
+            // 使用新的接口，只更新参数定义部分，保留其他代码
+            await nodeApi.updateCustomNodeParameters(targetNodeType, {
+              inputs: newInputParams,
+              outputs: targetOutputParams,
+            })
+          }
+        } catch (error) {
+          // 如果不是自定义节点或获取失败，只更新内存中的数据
+          console.warn('目标节点不是自定义节点，只更新内存中的数据:', error)
+        }
+      }
+
+      // 创建连接
+      const newConnection: Connection = {
+        source: sourceNodeId,
+        sourceHandle: sourceHandleId,
+        target: targetNodeId,
+        targetHandle: sourceHandleId,
+      }
+      onConnect(newConnection)
+    }
+
+    // 关闭菜单
+    setConnectionMenu(null)
+  }, [connectionMenu, nodes, onConnect, updateNodeData])
 
   const onInit = useCallback((instance: ReactFlowInstance) => {
     reactFlowInstance.current = instance
@@ -335,7 +541,14 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
           })}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
-          onConnect={onConnect}
+          onConnect={(connection) => {
+            // 如果连接成功，清除连接状态
+            if (connectionStartRef.current) {
+              connectionStartRef.current = null
+            }
+            onConnect(connection)
+          }}
+          onConnectStart={handleConnectStart}
           onNodeClick={handleNodeClick}
           onEdgeClick={handleEdgeClick}
           onEdgeMouseEnter={handleEdgeMouseEnter}
@@ -356,6 +569,14 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
           <Controls />
           <EnhancedMiniMap reactFlowInstance={reactFlowInstance.current} />
         </ReactFlow>
+        {connectionMenu?.visible && (
+          <ConnectionContextMenu
+            x={connectionMenu.x}
+            y={connectionMenu.y}
+            onSelect={handleCreateInputAndConnect}
+            onClose={() => setConnectionMenu(null)}
+          />
+        )}
         </HandleHoverContext.Provider>
       </ReactFlowProvider>
     </div>

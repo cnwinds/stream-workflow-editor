@@ -159,6 +159,15 @@ export const nodeApi = {
     return response.data
   },
 
+  // 更新自定义节点的参数定义（只更新参数部分，保留其他代码）
+  updateCustomNodeParameters: async (nodeId: string, request: {
+    inputs: Record<string, { isStreaming: boolean; schema: Record<string, any> }>
+    outputs: Record<string, { isStreaming: boolean; schema: Record<string, any> }>
+  }) => {
+    const response = await api.put(`/nodes/custom/${nodeId}/parameters`, request)
+    return response.data
+  },
+
   // 删除自定义节点
   deleteCustomNode: async (nodeId: string) => {
     const response = await api.delete(`/nodes/custom/${nodeId}`)

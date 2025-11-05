@@ -39,8 +39,9 @@ interface WorkflowState {
   
   // 撤销/重做
   saveHistory: () => void
-  undo: () => void
-  redo: () => void
+  syncParameterChangesToServer: (oldNodes: Node[], newNodes: Node[]) => Promise<void>
+  undo: () => Promise<void>
+  redo: () => Promise<void>
   canUndo: () => boolean
   canRedo: () => boolean
 }
@@ -61,10 +62,15 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
 
   onNodesChange: (changes) => {
     const currentNodes = get().nodes
+    
+    // 应用所有变化（包括选中状态），确保 UI 正确显示
     let newNodes = applyNodeChanges(changes, currentNodes)
     
+    // 过滤掉选中状态的变化，只检测实际的内容变化
+    const contentChanges = changes.filter((change) => change.type !== 'select')
+    
     // 检测是否有节点位置变化，并对位置进行对齐到10的倍数，实现吸附效果
-    const hasPositionChange = changes.some((change) => change.type === 'position')
+    const hasPositionChange = contentChanges.some((change) => change.type === 'position')
     if (hasPositionChange) {
       // 对位置进行对齐到10的倍数，实现吸附对齐效果
       // 使用 Math.round(x / 10) * 10 来对齐到最近的10的倍数
@@ -84,27 +90,39 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
     
     set({ nodes: newNodes })
     
-    // 检测是否有节点位置变化完成（drag结束）
-    const hasPositionChangeComplete = changes.some(
-      (change) => change.type === 'position' && change.dragging === false
-    )
-    
-    // 只在位置变化完成时保存历史，避免拖动过程中保存过多中间状态
-    if (hasPositionChangeComplete) {
-      // 延迟保存，确保位置已经更新
-      setTimeout(() => {
-        get().saveHistory()
-      }, 100)
+    // 只在有实际内容变化时才保存历史（不包括选中状态变化）
+    if (contentChanges.length > 0) {
+      // 检测是否有节点位置变化完成（drag结束）
+      const hasPositionChangeComplete = contentChanges.some(
+        (change) => change.type === 'position' && change.dragging === false
+      )
+      
+      // 只在位置变化完成时保存历史，避免拖动过程中保存过多中间状态
+      if (hasPositionChangeComplete) {
+        // 延迟保存，确保位置已经更新
+        setTimeout(() => {
+          get().saveHistory()
+        }, 100)
+      } else if (contentChanges.some((change) => change.type !== 'position')) {
+        // 如果有其他类型的内容变化（非位置变化），立即保存历史
+        setTimeout(() => {
+          get().saveHistory()
+        }, 0)
+      }
     }
   },
 
   onEdgesChange: (changes) => {
+    // 应用所有变化（包括选中状态），确保 UI 正确显示
     set({
       edges: applyEdgeChanges(changes, get().edges),
     })
     
-    // 检测是否有删除连接的操作
-    const hasRemove = changes.some((change) => change.type === 'remove')
+    // 过滤掉选中状态的变化，只检测实际的内容变化
+    const contentChanges = changes.filter((change) => change.type !== 'select')
+    
+    // 检测是否有删除连接的操作（只考虑内容变化）
+    const hasRemove = contentChanges.some((change) => change.type === 'remove')
     if (hasRemove) {
       // 删除连接后保存历史
       setTimeout(() => {
@@ -153,6 +171,14 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
           : node
       ),
     })
+    
+    // 如果更新了参数或配置，保存历史（这些是实际的内容变化）
+    const hasContentChange = 'inputParams' in data || 'outputParams' in data || 'config' in data
+    if (hasContentChange) {
+      setTimeout(() => {
+        get().saveHistory()
+      }, 0)
+    }
   },
 
   loadWorkflow: async (config) => {
@@ -309,9 +335,21 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
   // 保存历史记录
   saveHistory: () => {
     const { nodes, edges, history, historyIndex } = get()
+    
+    // 创建不包含选中状态的节点和边副本
+    const nodesWithoutSelection = nodes.map((node) => {
+      const { selected, ...nodeWithoutSelection } = node
+      return nodeWithoutSelection
+    })
+    
+    const edgesWithoutSelection = edges.map((edge) => {
+      const { selected, ...edgeWithoutSelection } = edge
+      return edgeWithoutSelection
+    })
+    
     const currentState = {
-      nodes: JSON.parse(JSON.stringify(nodes)), // 深拷贝
-      edges: JSON.parse(JSON.stringify(edges)),
+      nodes: JSON.parse(JSON.stringify(nodesWithoutSelection)), // 深拷贝，不包含选中状态
+      edges: JSON.parse(JSON.stringify(edgesWithoutSelection)), // 深拷贝，不包含选中状态
     }
 
     // 如果当前不在历史记录的末尾，删除当前位置之后的所有记录
@@ -329,29 +367,99 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
     set({ history: newHistory })
   },
 
+  // 检测节点参数变化并同步到服务器
+  syncParameterChangesToServer: async (oldNodes: Node[], newNodes: Node[]) => {
+    try {
+      const { nodeApi } = await import('@/services/api')
+      
+      // 找出参数发生变化的节点（只检查在两个状态中都存在的节点）
+      const parameterChangedNodes: Array<{ nodeId: string; nodeType: string; inputParams: any; outputParams: any }> = []
+      
+      for (const newNode of newNodes) {
+        const oldNode = oldNodes.find(n => n.id === newNode.id)
+        // 只处理在两个状态中都存在的节点（排除新增节点）
+        if (!oldNode) continue
+        
+        const oldInputParams = oldNode.data?.inputParams || {}
+        const oldOutputParams = oldNode.data?.outputParams || {}
+        const newInputParams = newNode.data?.inputParams || {}
+        const newOutputParams = newNode.data?.outputParams || {}
+        
+        // 检查输入参数或输出参数是否发生变化
+        const inputParamsChanged = JSON.stringify(oldInputParams) !== JSON.stringify(newInputParams)
+        const outputParamsChanged = JSON.stringify(oldOutputParams) !== JSON.stringify(newOutputParams)
+        
+        if (inputParamsChanged || outputParamsChanged) {
+          const nodeType = newNode.data?.type
+          if (nodeType) {
+            // 检查是否为自定义节点
+            try {
+              await nodeApi.getCustomNode(nodeType)
+              // 如果是自定义节点，记录需要更新的信息
+              parameterChangedNodes.push({
+                nodeId: newNode.id,
+                nodeType,
+                inputParams: newInputParams,
+                outputParams: newOutputParams,
+              })
+            } catch (error) {
+              // 不是自定义节点，跳过
+            }
+          }
+        }
+      }
+      
+      // 批量更新所有参数发生变化的自定义节点
+      for (const nodeInfo of parameterChangedNodes) {
+        try {
+          await nodeApi.updateCustomNodeParameters(nodeInfo.nodeType, {
+            inputs: nodeInfo.inputParams,
+            outputs: nodeInfo.outputParams,
+          })
+        } catch (error) {
+          console.warn(`更新节点 ${nodeInfo.nodeId} 的参数失败:`, error)
+        }
+      }
+    } catch (error) {
+      console.warn('同步参数变化到服务器失败:', error)
+    }
+  },
+
   // 撤销
-  undo: () => {
-    const { history, historyIndex } = get()
+  undo: async () => {
+    const { history, historyIndex, nodes } = get()
     if (historyIndex > 0) {
       const newIndex = historyIndex - 1
       const state = history[newIndex]
+      const newNodes = JSON.parse(JSON.stringify(state.nodes))
+      const newEdges = JSON.parse(JSON.stringify(state.edges))
+      
+      // 检测参数变化并同步到服务器
+      await get().syncParameterChangesToServer(nodes, newNodes)
+      
       set({
-        nodes: JSON.parse(JSON.stringify(state.nodes)),
-        edges: JSON.parse(JSON.stringify(state.edges)),
+        nodes: newNodes,
+        edges: newEdges,
         historyIndex: newIndex,
       })
     }
   },
 
   // 重做
-  redo: () => {
-    const { history, historyIndex } = get()
+  redo: async () => {
+    const { history, historyIndex, nodes } = get()
     if (historyIndex < history.length - 1) {
       const newIndex = historyIndex + 1
       const state = history[newIndex]
+      const newNodes = JSON.parse(JSON.stringify(state.nodes))
+      const newEdges = JSON.parse(JSON.stringify(state.edges))
+      
+      // 检测参数变化并同步到服务器
+      await get().syncParameterChangesToServer(nodes, newNodes)
+      
       set({
-        nodes: JSON.parse(JSON.stringify(state.nodes)),
-        edges: JSON.parse(JSON.stringify(state.edges)),
+        nodes: newNodes,
+        edges: newEdges,
         historyIndex: newIndex,
       })
     }

@@ -472,6 +472,171 @@ def update_custom_node_full(
     return node_entry
 
 
+def update_custom_node_parameters(
+    node_id: str,
+    inputs: Dict[str, Dict[str, Any]],
+    outputs: Dict[str, Dict[str, Any]]
+) -> Dict[str, Any]:
+    """更新自定义节点的参数定义（只更新参数部分，保留其他代码）
+    
+    Args:
+        node_id: 注册表ID或节点类型
+        inputs: 新的输入参数（字典格式）
+        outputs: 新的输出参数（字典格式）
+    
+    Returns:
+        更新后的节点信息
+    """
+    import re
+    
+    ensure_custom_nodes_dir()
+    
+    # 加载注册表
+    registry = load_registry()
+    
+    # 查找节点（支持通过注册表ID或节点类型查找）
+    node_entry = None
+    for node in registry.get("custom_nodes", []):
+        if node.get("id") == node_id or node.get("type") == node_id:
+            node_entry = node
+            break
+    
+    if not node_entry:
+        raise ValueError(f"节点不存在: {node_id}")
+    
+    python_file = node_entry.get("pythonFile")
+    python_path = get_custom_nodes_dir() / python_file
+    
+    if not python_path.exists():
+        raise ValueError(f"Python文件不存在: {python_path}")
+    
+    # 读取当前代码
+    with open(python_path, 'r', encoding='utf-8') as f:
+        current_code = f.read()
+    
+    # 生成新的 INPUT_PARAMS 代码
+    input_params_lines = []
+    for param_name, param in inputs.items():
+        is_streaming = param.get('isStreaming', False) or param.get('is_streaming', False)
+        schema = param.get('schema', {})
+        input_params_lines.append(
+            f'        "{param_name}": ParameterSchema(\n'
+            f'            is_streaming={str(is_streaming)},\n'
+            f'            schema={repr(schema)}\n'
+            f'        )'
+        )
+    new_input_params_code = ',\n'.join(input_params_lines)
+    
+    # 生成新的 OUTPUT_PARAMS 代码
+    output_params_lines = []
+    for param_name, param in outputs.items():
+        is_streaming = param.get('isStreaming', False) or param.get('is_streaming', False)
+        schema = param.get('schema', {})
+        output_params_lines.append(
+            f'        "{param_name}": ParameterSchema(\n'
+            f'            is_streaming={str(is_streaming)},\n'
+            f'            schema={repr(schema)}\n'
+            f'        )'
+        )
+    new_output_params_code = ',\n'.join(output_params_lines)
+    
+    # 更新 INPUT_PARAMS
+    # 使用更智能的方法：找到 INPUT_PARAMS = { 的位置，然后找到匹配的 }
+    # 需要考虑字符串中的大括号
+    input_match = re.search(r'(\s*#\s*输入参数定义\s*\n)?\s*INPUT_PARAMS\s*=\s*\{', current_code)
+    if input_match:
+        start_pos = input_match.end()
+        brace_count = 1
+        end_pos = start_pos
+        in_string = False
+        string_char = ''
+        
+        # 找到匹配的结束括号，考虑字符串中的大括号
+        for i in range(start_pos, len(current_code)):
+            char = current_code[i]
+            prev_char = current_code[i - 1] if i > 0 else ''
+            
+            # 处理字符串
+            if not in_string and (char == '"' or char == "'"):
+                in_string = True
+                string_char = char
+            elif in_string and char == string_char and prev_char != '\\':
+                in_string = False
+            
+            # 只有在不在字符串中时才计算大括号
+            if not in_string:
+                if char == '{':
+                    brace_count += 1
+                elif char == '}':
+                    brace_count -= 1
+                    if brace_count == 0:
+                        end_pos = i
+                        break
+        
+        # 替换整个 INPUT_PARAMS 定义
+        before = current_code[:input_match.start()]
+        after = current_code[end_pos + 1:]
+        current_code = f'{before}    # 输入参数定义\n    INPUT_PARAMS = {{\n{new_input_params_code}\n    }}{after}'
+    
+    # 更新 OUTPUT_PARAMS
+    # 使用相同的方法
+    output_match = re.search(r'(\s*#\s*输出参数定义\s*\n)?\s*OUTPUT_PARAMS\s*=\s*\{', current_code)
+    if output_match:
+        start_pos = output_match.end()
+        brace_count = 1
+        end_pos = start_pos
+        in_string = False
+        string_char = ''
+        
+        # 找到匹配的结束括号，考虑字符串中的大括号
+        for i in range(start_pos, len(current_code)):
+            char = current_code[i]
+            prev_char = current_code[i - 1] if i > 0 else ''
+            
+            # 处理字符串
+            if not in_string and (char == '"' or char == "'"):
+                in_string = True
+                string_char = char
+            elif in_string and char == string_char and prev_char != '\\':
+                in_string = False
+            
+            # 只有在不在字符串中时才计算大括号
+            if not in_string:
+                if char == '{':
+                    brace_count += 1
+                elif char == '}':
+                    brace_count -= 1
+                    if brace_count == 0:
+                        end_pos = i
+                        break
+        
+        # 替换整个 OUTPUT_PARAMS 定义
+        before = current_code[:output_match.start()]
+        after = current_code[end_pos + 1:]
+        current_code = f'{before}    # 输出参数定义\n    OUTPUT_PARAMS = {{\n{new_output_params_code}\n    }}{after}'
+    
+    # 保存更新后的代码
+    with open(python_path, 'w', encoding='utf-8') as f:
+        f.write(current_code)
+    
+    # 更新注册表
+    node_entry["updatedAt"] = datetime.utcnow().isoformat() + "Z"
+    save_registry(registry)
+    
+    # 重新加载自定义节点模块
+    try:
+        import sys
+        custom_nodes_module = sys.modules.get("custom_nodes")
+        if custom_nodes_module:
+            reload_func = getattr(custom_nodes_module, "reload_custom_nodes", None)
+            if reload_func:
+                reload_func()
+    except Exception as e:
+        logger.warning(f"重新加载自定义节点失败: {e}", exc_info=True)
+    
+    return node_entry
+
+
 def delete_custom_node(node_id: str) -> bool:
     """删除自定义节点
     

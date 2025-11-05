@@ -59,6 +59,16 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
   const [originalPythonCode, setOriginalPythonCode] = useState('') // 保存加载时的原始代码
   const [showCodeEditor, setShowCodeEditor] = useState(false)
   const [codeManuallyModified, setCodeManuallyModified] = useState(false) // 标记代码是否被手动修改
+  const [originalData, setOriginalData] = useState<{
+    name: string
+    description: string
+    category: string
+    executionMode: string
+    color: string
+    configSchema: Record<string, any>
+    inputs: Record<string, any>
+    outputs: Record<string, any>
+  } | null>(null)
   const { updateNodeTypeInstances } = useWorkflowStore()
 
   // 加载编辑节点的数据或查看内置节点数据
@@ -89,6 +99,7 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
         setCodeManuallyModified(false)
         setShowCodeEditor(false)
         setActiveTab('basic')
+        setOriginalData(null)
       }
     })
     
@@ -136,6 +147,18 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
       setOriginalPythonCode(codeData.code) // 保存原始代码
       setCodeManuallyModified(false) // 重置修改标记
       setShowCodeEditor(true)
+      
+      // 保存原始数据用于比较变化
+      setOriginalData({
+        name: nodeData.name,
+        description: nodeData.description || '',
+        category: nodeData.category,
+        executionMode: nodeData.executionMode,
+        color: nodeData.color || '#1890ff',
+        configSchema: nodeData.configSchema || {},
+        inputs: nodeData.inputs || {},
+        outputs: nodeData.outputs || {},
+      })
     } catch (error) {
       message.error('加载节点数据失败')
       console.error(error)
@@ -452,18 +475,79 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
       const inputsDict = convertToDict(inputs)
       const outputsDict = convertToDict(outputs)
 
-      // 在编辑模式下，智能判断使用哪个代码
-      let finalPythonCode: string | undefined = undefined
-      
       if (editingNodeId) {
-        if (showCodeEditor && pythonCode) {
-          // 如果代码被手动修改过，使用用户修改的代码
-          if (codeManuallyModified) {
-            finalPythonCode = pythonCode
-            console.log('使用手动修改的代码')
+        // 检查哪些字段发生了变化
+        const hasNameChange = originalData && originalData.name !== values.name
+        const hasDescriptionChange = originalData && originalData.description !== (values.description || '')
+        const hasCategoryChange = originalData && originalData.category !== values.category
+        const hasExecutionModeChange = originalData && originalData.executionMode !== values.executionMode
+        const hasColorChange = originalData && originalData.color !== (values.color || '#1890ff')
+        const hasConfigSchemaChange = originalData && JSON.stringify(originalData.configSchema) !== JSON.stringify(configSchema)
+        const hasInputsChange = originalData && JSON.stringify(originalData.inputs) !== JSON.stringify(inputsDict)
+        const hasOutputsChange = originalData && JSON.stringify(originalData.outputs) !== JSON.stringify(outputsDict)
+        const hasCodeChange = codeManuallyModified || (showCodeEditor && pythonCode !== originalPythonCode)
+        
+        // 如果只有参数（inputs/outputs）变化，且代码没有被手动修改，使用参数更新接口
+        const onlyParametersChanged = !hasNameChange && !hasDescriptionChange && !hasCategoryChange && 
+                                     !hasExecutionModeChange && !hasColorChange && !hasConfigSchemaChange &&
+                                     !hasCodeChange && (hasInputsChange || hasOutputsChange)
+        
+        if (onlyParametersChanged) {
+          // 只更新参数，使用新接口，保留其他代码
+          await nodeApi.updateCustomNodeParameters(editingNodeId, {
+            inputs: inputsDict,
+            outputs: outputsDict,
+          })
+          
+          // 更新所有使用该节点类型的实例
+          const { edges: edgesBefore } = useWorkflowStore.getState()
+          updateNodeTypeInstances(editingNodeId, {
+            inputParams: inputsDict,
+            outputParams: outputsDict,
+          })
+          const { edges: edgesAfter } = useWorkflowStore.getState()
+          
+          // 检查是否有连接被删除
+          const removedConnections = edgesBefore.filter(
+            (e) => !edgesAfter.find((ea) => ea.id === e.id)
+          )
+          
+          if (removedConnections.length > 0) {
+            message.warning(
+              `参数更新成功（已保留您的代码）。所有实例已同步更新，但有 ${removedConnections.length} 个连接因参数被删除而移除。`
+            )
           } else {
-            // 如果代码没有被手动修改，根据新参数生成代码
-            // 这样参数的变化会反映到代码中
+            message.success('参数更新成功（已保留您的代码，所有实例已同步更新）')
+          }
+        } else {
+          // 有其他字段变化或代码变化，使用完整更新接口
+          // 在编辑模式下，智能判断使用哪个代码
+          let finalPythonCode: string | undefined = undefined
+          
+          if (showCodeEditor && pythonCode) {
+            // 如果代码被手动修改过，使用用户修改的代码
+            if (codeManuallyModified) {
+              finalPythonCode = pythonCode
+              console.log('使用手动修改的代码')
+            } else {
+              // 如果代码没有被手动修改，根据新参数生成代码
+              // 这样参数的变化会反映到代码中
+              const generatedCode = nodeGenerator.generateNodeCode({
+                nodeId: values.nodeId,
+                name: values.name,
+                description: values.description || "",
+                category: values.category,
+                executionMode: values.executionMode,
+                color: values.color,
+                inputs: inputsDict,
+                outputs: outputsDict,
+                configSchema,
+              })
+              finalPythonCode = generatedCode
+              console.log('代码未被手动修改，使用新生成的代码')
+            }
+          } else {
+            // 如果没有显示代码编辑器，根据新参数生成代码
             const generatedCode = nodeGenerator.generateNodeCode({
               nodeId: values.nodeId,
               name: values.name,
@@ -476,11 +560,10 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
               configSchema,
             })
             finalPythonCode = generatedCode
-            console.log('代码未被手动修改，使用新生成的代码')
+            console.log('没有显示代码编辑器，生成新代码')
           }
-        } else {
-          // 如果没有显示代码编辑器，根据新参数生成代码
-          const generatedCode = nodeGenerator.generateNodeCode({
+
+          const request: CreateNodeRequest = {
             nodeId: values.nodeId,
             name: values.name,
             description: values.description || "",
@@ -490,67 +573,61 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
             inputs: inputsDict,
             outputs: outputsDict,
             configSchema,
+            pythonCode: finalPythonCode,
+          }
+          
+          await nodeApi.updateCustomNodeFull(editingNodeId, request)
+          
+          // 更新所有使用该节点类型的实例
+          const { edges: edgesBefore } = useWorkflowStore.getState()
+          updateNodeTypeInstances(editingNodeId, {
+            name: values.name,
+            color: values.color,
+            inputParams: inputsDict,
+            outputParams: outputsDict,
           })
-          finalPythonCode = generatedCode
-          console.log('没有显示代码编辑器，生成新代码')
+          const { edges: edgesAfter } = useWorkflowStore.getState()
+          
+          // 检查是否有连接被删除
+          const removedConnections = edgesBefore.filter(
+            (e) => !edgesAfter.find((ea) => ea.id === e.id)
+          )
+          
+          if (codeManuallyModified) {
+            if (removedConnections.length > 0) {
+              message.warning(
+                `节点更新成功（已保留您的代码修改）。所有实例已同步更新，但有 ${removedConnections.length} 个连接因参数被删除而移除。`
+              )
+            } else {
+              message.success('节点更新成功（已保留您的代码修改，所有实例已同步更新）')
+            }
+          } else {
+            if (removedConnections.length > 0) {
+              message.warning(
+                `节点更新成功。所有实例已同步更新，但有 ${removedConnections.length} 个连接因参数被删除而移除。`
+              )
+            } else {
+              message.success('节点更新成功（所有实例已同步更新）')
+            }
+          }
         }
       } else {
         // 创建模式：使用代码编辑器中的代码或生成新代码
-        finalPythonCode = showCodeEditor && pythonCode ? pythonCode : undefined
-      }
+        const finalPythonCode = showCodeEditor && pythonCode ? pythonCode : undefined
 
-      const request: CreateNodeRequest = {
-        nodeId: values.nodeId,
-        name: values.name,
-        description: values.description || "",
-        category: values.category,
-        executionMode: values.executionMode,
-        color: values.color,
-        inputs: inputsDict,
-        outputs: outputsDict,
-        configSchema,
-        pythonCode: finalPythonCode,
-      }
-
-      if (editingNodeId) {
-        // 编辑模式：更新节点的完整信息
-        await nodeApi.updateCustomNodeFull(editingNodeId, request)
-        
-        // 更新所有使用该节点类型的实例
-        // 注意：这会自动清理因参数删除而失效的连接
-        const { edges: edgesBefore } = useWorkflowStore.getState()
-        updateNodeTypeInstances(editingNodeId, {
+        const request: CreateNodeRequest = {
+          nodeId: values.nodeId,
           name: values.name,
+          description: values.description || "",
+          category: values.category,
+          executionMode: values.executionMode,
           color: values.color,
-          inputParams: inputsDict,
-          outputParams: outputsDict,
-        })
-        const { edges: edgesAfter } = useWorkflowStore.getState()
-        
-        // 检查是否有连接被删除
-        const removedConnections = edgesBefore.filter(
-          (e) => !edgesAfter.find((ea) => ea.id === e.id)
-        )
-        
-        if (codeManuallyModified) {
-          if (removedConnections.length > 0) {
-            message.warning(
-              `节点更新成功（已保留您的代码修改）。所有实例已同步更新，但有 ${removedConnections.length} 个连接因参数被删除而移除。`
-            )
-          } else {
-            message.success('节点更新成功（已保留您的代码修改，所有实例已同步更新）')
-          }
-        } else {
-          if (removedConnections.length > 0) {
-            message.warning(
-              `节点更新成功。所有实例已同步更新，但有 ${removedConnections.length} 个连接因参数被删除而移除。`
-            )
-          } else {
-            message.success('节点更新成功（所有实例已同步更新）')
-          }
+          inputs: inputsDict,
+          outputs: outputsDict,
+          configSchema,
+          pythonCode: finalPythonCode,
         }
-      } else {
-        // 创建模式：创建新节点
+        
         await nodeApi.createCustomNode(request)
         message.success('节点创建成功')
       }

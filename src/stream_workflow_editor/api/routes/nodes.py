@@ -10,6 +10,7 @@ from ..services.custom_node_service import (
     create_custom_node,
     update_custom_node,
     update_custom_node_full,
+    update_custom_node_parameters,
     delete_custom_node,
     list_custom_nodes,
     get_node_code,
@@ -230,6 +231,44 @@ async def get_node_code_endpoint(node_id: str):
 async def update_node_code_endpoint(node_id: str, request: UpdateNodeCodeRequest):
     """更新节点Python代码（与 PUT /custom/{node_id} 相同）"""
     return await update_custom_node_endpoint(node_id, request)
+
+
+class UpdateNodeParametersRequest(BaseModel):
+    """更新节点参数请求"""
+    inputs: Dict[str, Dict[str, Any]]
+    outputs: Dict[str, Dict[str, Any]]
+
+
+@router.put("/custom/{node_id}/parameters")
+async def update_custom_node_parameters_endpoint(
+    node_id: str,
+    request: UpdateNodeParametersRequest
+):
+    """更新自定义节点的参数定义（只更新参数部分，保留其他代码）"""
+    try:
+        # 验证节点定义
+        is_valid, error_msg = validate_node_definition(
+            node_id,
+            request.inputs,
+            request.outputs
+        )
+        if not is_valid:
+            raise HTTPException(status_code=400, detail=error_msg)
+        
+        # 更新节点参数
+        node_entry = update_custom_node_parameters(
+            node_id=node_id,
+            inputs=request.inputs,
+            outputs=request.outputs
+        )
+        
+        logger.info(f"节点 {node_id} 的参数定义更新成功")
+        return {"message": "参数定义更新成功", "node": node_entry}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"更新节点参数失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"更新节点参数失败: {str(e)}")
 
 
 @router.put("/custom/{node_id}/full")
