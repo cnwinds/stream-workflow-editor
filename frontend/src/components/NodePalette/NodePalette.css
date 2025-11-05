@@ -7,7 +7,7 @@
 
 .node-palette-header {
   padding: 8px;
-  border-bottom: 1px solid #e8e8e8;
+  border-bottom: 1px solid var(--theme-border, #e8e8e8);
 }
 
 .node-palette-content {
@@ -23,7 +23,7 @@
 .node-category-title {
   font-size: 12px;
   font-weight: 600;
-  color: #8c8c8c;
+  color: var(--theme-textTertiary, #8c8c8c);
   margin-bottom: 4px;
   text-transform: uppercase;
 }
@@ -68,13 +68,13 @@
 .node-item-name {
   font-size: 12px;
   font-weight: 500;
-  color: #262626;
+  color: var(--theme-text, #262626);
   line-height: 1.3;
 }
 
 .node-item-desc {
   font-size: 10px;
-  color: #8c8c8c;
+  color: var(--theme-textTertiary, #8c8c8c);
   margin-top: 1px;
   overflow: hidden;
   text-overflow: ellipsis;

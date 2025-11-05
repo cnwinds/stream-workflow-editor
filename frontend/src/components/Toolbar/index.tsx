@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Button, Space, Upload, message, Modal, Input } from 'antd'
+import { Button, Space, Upload, message, Modal, Input, Select } from 'antd'
 import {
   SaveOutlined,
   FolderOpenOutlined,
@@ -9,7 +9,9 @@ import {
   CheckCircleOutlined,
   PlusOutlined,
   CopyOutlined,
+  BgColorsOutlined,
 } from '@ant-design/icons'
+import { useThemeStore, ThemeMode } from '@/stores/themeStore'
 import { useWorkflowStore } from '@/stores/workflowStore'
 import { validationApi, fileApi } from '@/services/api'
 import { YamlService } from '@/services/yamlService'
@@ -19,11 +21,18 @@ import './Toolbar.css'
 
 const Toolbar: React.FC = () => {
   const { loadWorkflow, exportWorkflow, currentFileName, setCurrentFileName } = useWorkflowStore()
+  const { theme, setTheme } = useThemeStore()
   const [loading, setLoading] = useState(false)
   const [nodeCreatorVisible, setNodeCreatorVisible] = useState(false)
   const [fileManagerVisible, setFileManagerVisible] = useState(false)
   const [saveAsVisible, setSaveAsVisible] = useState(false)
   const [saveAsFileName, setSaveAsFileName] = useState('')
+
+  const themeOptions: { label: string; value: ThemeMode }[] = [
+    { label: '明亮', value: 'light' },
+    { label: '护眼', value: 'eye-care' },
+    { label: '暗色', value: 'dark' },
+  ]
 
   const handleNodeCreatorSuccess = () => {
     // 节点创建成功后，触发事件通知 NodePalette 刷新节点列表
@@ -199,6 +208,13 @@ const Toolbar: React.FC = () => {
         <Button icon={<PlusOutlined />} onClick={() => setNodeCreatorVisible(true)}>
           创建节点
         </Button>
+        <Select
+          value={theme}
+          onChange={setTheme}
+          style={{ width: 100 }}
+          suffixIcon={<BgColorsOutlined />}
+          options={themeOptions}
+        />
       </Space>
       <NodeCreatorModal
         visible={nodeCreatorVisible}

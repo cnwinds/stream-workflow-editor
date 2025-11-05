@@ -7,6 +7,8 @@
 
 .node-config-panel .ant-card {
   font-size: 12px;
+  background: var(--theme-background, #ffffff);
+  border-color: var(--theme-border, #e8e8e8);
 }
 
 .node-config-panel .ant-card-head {
@@ -23,6 +25,7 @@
 
 .node-config-panel .ant-card-body {
   padding: 6px 10px;
+  background: var(--theme-background, #ffffff);
 }
 
 .node-config-panel .ant-tabs {
@@ -50,6 +53,7 @@
   font-size: 12px;
   height: auto;
   line-height: 1.3;
+  color: var(--theme-text, #262626);
 }
 
 .node-config-panel .ant-input,
@@ -99,7 +103,7 @@
 }
 
 .yaml-editor-container {
-  border: 1px solid #d9d9d9;
+  border: 1px solid var(--theme-borderSecondary, #d9d9d9);
   border-radius: 4px;
   overflow: hidden;
 }

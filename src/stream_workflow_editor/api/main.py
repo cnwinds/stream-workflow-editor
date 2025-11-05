@@ -15,7 +15,7 @@ from .config import config
 app = FastAPI(
     title="Stream Workflow API",
     description="流式工作流引擎 API",
-    version="0.1.0",
+    version="0.2.0",
 )
 
 # CORS 配置
@@ -53,7 +53,7 @@ async def root(request: Request):
             return FileResponse(index_path)
     
     # 开发模式：返回 API 信息
-    return {"message": "Stream Workflow API", "version": "0.1.0"}
+    return {"message": "Stream Workflow API", "version": "0.2.0"}
 
 # 静态文件服务（生产模式）
 static_dir = Path(__file__).parent.parent / "static"

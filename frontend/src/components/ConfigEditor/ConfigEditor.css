@@ -15,9 +15,9 @@
   align-items: center;
   gap: 4px;
   padding: 6px 8px;
-  border: 1px solid #d9d9d9;
+  border: 1px solid var(--theme-borderSecondary, #d9d9d9);
   border-radius: 4px;
-  background: #fafafa;
+  background: var(--theme-backgroundSecondary, #fafafa);
   transition: all 0.2s;
   position: relative;
 }
@@ -25,7 +25,7 @@
 .config-editor-item.dragging {
   opacity: 0.5;
   border: 1px dashed #1890ff;
-  background: #e6f7ff;
+  background: var(--theme-backgroundSecondary, #e6f7ff);
 }
 
 .config-editor-item.drag-over {
@@ -161,7 +161,7 @@
 }
 
 .config-editor-item-value .ant-input-suffix .ant-btn:hover {
-  background: rgba(0, 0, 0, 0.04);
+  background: var(--theme-backgroundTertiary, rgba(0, 0, 0, 0.04));
 }
 
 .config-editor-item-value .ant-btn {
@@ -187,7 +187,7 @@
 }
 
 .config-editor-modal-content {
-  border: 1px solid #d9d9d9;
+  border: 1px solid var(--theme-borderSecondary, #d9d9d9);
   border-radius: 4px;
   overflow: hidden;
 }

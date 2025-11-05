@@ -9,7 +9,7 @@ import ConfigEditor from '@/components/ConfigEditor'
 import { WorkflowValidator } from '@/utils/validators'
 import './NodeConfigPanel.css'
 
-const { Text, Title, Paragraph } = Typography
+const { Text } = Typography
 
 interface NodeConfigPanelProps {
   nodeId: string | null
@@ -551,9 +551,9 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ nodeId, edgeId }) => 
                     <div style={{ 
                       marginTop: 24, 
                       padding: '16px', 
-                      background: '#f5f5f5', 
+                      background: 'var(--theme-backgroundTertiary)', 
                       borderRadius: '4px',
-                      border: '1px solid #e8e8e8'
+                      border: '1px solid var(--theme-border)'
                     }}>
                       <div 
                         style={{ 
@@ -561,7 +561,7 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ nodeId, edgeId }) => 
                           marginBottom: 0,
                           whiteSpace: 'pre-wrap',
                           wordBreak: 'break-word',
-                          color: '#595959',
+                          color: 'var(--theme-textSecondary)',
                           lineHeight: 1.6
                         }}
                       >
