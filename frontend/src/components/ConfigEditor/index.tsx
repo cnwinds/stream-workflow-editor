@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Input, Button, Modal, Space } from 'antd'
 import { MoreOutlined, PlusOutlined, DeleteOutlined, HolderOutlined } from '@ant-design/icons'
 import Editor from '@monaco-editor/react'
+import { useThemeStore } from '@/stores/themeStore'
 import './ConfigEditor.css'
 
 const { TextArea } = Input
@@ -16,6 +17,7 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
   value = {},
   onChange,
 }) => {
+  const { theme } = useThemeStore()
   const [items, setItems] = useState<Array<{ key: string; value: any }>>([])
   const [editorModalVisible, setEditorModalVisible] = useState(false)
   const [editingIndex, setEditingIndex] = useState<number | null>(null)
@@ -24,6 +26,9 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
   const [dragDirection, setDragDirection] = useState<'up' | 'down' | null>(null)
+  
+  // 根据主题确定Monaco Editor的主题
+  const editorTheme = theme === 'dark' ? 'vs-dark' : 'vs'
 
   // 将字典转换为数组格式
   useEffect(() => {
@@ -422,6 +427,7 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
               language={editorLanguage}
               value={editingContent}
               onChange={(value) => setEditingContent(value || '')}
+              theme={editorTheme}
               options={{
                 minimap: { enabled: false },
                 fontSize: 12,

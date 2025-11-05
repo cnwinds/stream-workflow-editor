@@ -3,10 +3,12 @@ import { Card, Input, Empty, message, Collapse } from 'antd'
 import { SearchOutlined } from '@ant-design/icons'
 import { nodeApi } from '@/services/api'
 import { NodeType, CategoryTreeNode } from '@/types/node'
+import { useNodeInfoStore } from '@/stores/nodeInfoStore'
 import './NodePalette.css'
 
 const NodePalette: React.FC = () => {
-  const [nodeTypes, setNodeTypes] = useState<NodeType[]>([])
+  const { setNodeTypes, setCustomNodes } = useNodeInfoStore()
+  const [nodeTypes, setNodeTypesLocal] = useState<NodeType[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [loading, setLoading] = useState(true)
 
@@ -31,7 +33,19 @@ const NodePalette: React.FC = () => {
       // 尝试从后端获取节点类型
       try {
         const types = await nodeApi.getNodeTypes()
+        setNodeTypesLocal(types)
+        // 同时更新缓存
         setNodeTypes(types)
+        
+        // 加载自定义节点列表并更新缓存
+        try {
+          const customNodesResponse = await nodeApi.getCustomNodes()
+          if (customNodesResponse?.nodes) {
+            setCustomNodes(customNodesResponse.nodes)
+          }
+        } catch (error) {
+          console.warn('加载自定义节点列表失败:', error)
+        }
       } catch (error) {
         console.error('从后端加载节点类型失败，使用默认类型:', error)
         // 如果后端连接失败，使用默认节点类型
@@ -79,6 +93,7 @@ const NodePalette: React.FC = () => {
             color: '#1890ff',
           },
         ]
+        setNodeTypesLocal(defaultTypes)
         setNodeTypes(defaultTypes)
       }
     } catch (error) {

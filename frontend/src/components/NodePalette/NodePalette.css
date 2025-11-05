@@ -74,12 +74,13 @@
 
 .node-item-desc {
   font-size: 10px;
-  color: var(--theme-textTertiary, #8c8c8c);
+  color: var(--theme-textSecondary, #595959);
   margin-top: 1px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   line-height: 1.2;
+  opacity: 0.9;
 }
 
 /* 优化 Collapse 组件的间距 */

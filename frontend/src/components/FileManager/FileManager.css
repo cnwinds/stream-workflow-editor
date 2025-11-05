@@ -1,5 +1,28 @@
+.file-manager-modal .ant-modal-content {
+  background: var(--theme-background, #ffffff);
+  color: var(--theme-text, #262626);
+}
+
+.file-manager-modal .ant-modal-header {
+  background: var(--theme-background, #ffffff);
+  border-bottom-color: var(--theme-border, #e8e8e8);
+}
+
+.file-manager-modal .ant-modal-title {
+  color: var(--theme-text, #262626);
+}
+
 .file-manager-modal .ant-modal-body {
   padding: 16px;
+  background: var(--theme-background, #ffffff);
+}
+
+.file-manager-modal .ant-modal-close {
+  color: var(--theme-text, #262626);
+}
+
+.file-manager-modal .ant-modal-close:hover {
+  color: var(--theme-text, #262626);
 }
 
 .file-manager {
@@ -16,7 +39,7 @@
 
 .file-manager-create {
   padding: 12px;
-  background: #f5f5f5;
+  background: var(--theme-backgroundTertiary, #f5f5f5);
   border-radius: 4px;
 }
 
@@ -25,18 +48,26 @@
   overflow-y: auto;
 }
 
+.file-manager-list .ant-list-item {
+  border-bottom-color: var(--theme-border, #f0f0f0);
+}
+
+.file-manager-list .ant-list-item:hover {
+  background-color: var(--theme-backgroundSecondary, #fafafa);
+}
+
 .file-manager-item {
   padding: 8px 0;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--theme-border, #f0f0f0);
 }
 
 .file-manager-item:hover {
-  background-color: #fafafa;
+  background-color: var(--theme-backgroundSecondary, #fafafa);
 }
 
 .file-name {
   font-weight: 500;
-  color: #1890ff;
+  color: var(--theme-primary, #1890ff);
 }
 
 .file-name:hover {
@@ -45,5 +76,37 @@
 
 .file-manager-item .ant-list-item-action {
   margin-left: 16px;
+}
+
+.file-manager-item .ant-list-item-meta-title {
+  color: var(--theme-text, #262626);
+}
+
+.file-manager-item .ant-list-item-meta-description {
+  color: var(--theme-textSecondary, #595959) !important;
+  opacity: 1 !important;
+}
+
+.file-manager-item .ant-list-item-meta-description .ant-typography {
+  color: var(--theme-textSecondary, #595959) !important;
+  opacity: 1 !important;
+}
+
+.file-manager .ant-btn {
+  color: var(--theme-text, #262626);
+}
+
+.file-manager .ant-btn:hover {
+  color: var(--theme-primary, #1890ff);
+}
+
+.file-manager .ant-input {
+  background: var(--theme-background, #ffffff);
+  color: var(--theme-text, #262626);
+  border-color: var(--theme-border, #d9d9d9);
+}
+
+.file-manager .ant-input::placeholder {
+  color: var(--theme-textTertiary, #8c8c8c);
 }
 

@@ -1,6 +1,6 @@
 .custom-node {
-  background: #fff;
-  border: 1px solid #d9d9d9;
+  background: var(--theme-nodeBackground, #fff);
+  border: 1px solid var(--theme-nodeBorder, #d9d9d9);
   border-radius: 4px;
   min-width: 200px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
@@ -13,17 +13,17 @@
 }
 
 .custom-node.selected {
-  border-color: #1890ff;
+  border-color: var(--theme-nodeSelected, #1890ff);
   box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
 }
 
 .custom-node-header {
   padding: 8px 12px;
-  border-top: 3px solid #1890ff;
+  border-top: 3px solid var(--theme-primary, #1890ff);
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: #fafafa;
+  background: var(--theme-backgroundSecondary, #fafafa);
   border-radius: 4px 4px 0 0;
   height: 40px;
   box-sizing: border-box;
@@ -32,7 +32,7 @@
 .custom-node-title {
   font-weight: 500;
   font-size: 13px;
-  color: #262626;
+  color: var(--theme-text, #262626);
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -95,7 +95,7 @@
   align-items: center;
   gap: 4px;
   font-size: 11px;
-  color: #595959;
+  color: var(--theme-textSecondary, #595959);
   line-height: 1.4;
   flex: 1;
 }
@@ -112,7 +112,7 @@
 
 .custom-node-param-name {
   font-weight: 500;
-  color: #262626;
+  color: var(--theme-text, #262626);
 }
 
 .custom-node-param-streaming {

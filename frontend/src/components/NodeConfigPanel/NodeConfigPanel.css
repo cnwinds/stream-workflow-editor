@@ -62,6 +62,22 @@
   padding: 4px 8px;
   height: auto;
   min-height: 28px;
+  background: var(--theme-background, #ffffff);
+  color: var(--theme-text, #262626);
+  border-color: var(--theme-border, #d9d9d9);
+}
+
+.node-config-panel .ant-input:disabled,
+.node-config-panel .ant-input-affix-wrapper.ant-input-affix-wrapper-disabled {
+  background: var(--theme-backgroundSecondary, #fafafa);
+  color: var(--theme-text, #262626);
+  border-color: var(--theme-border, #d9d9d9);
+  cursor: not-allowed;
+  opacity: 1;
+}
+
+.node-config-panel .ant-input::placeholder {
+  color: var(--theme-textTertiary, #8c8c8c);
 }
 
 .node-config-panel .ant-btn {

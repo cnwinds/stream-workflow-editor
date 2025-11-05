@@ -288,9 +288,30 @@ const FileManager: React.FC<FileManagerProps> = ({ visible, onClose, onFileSelec
                 }
                 description={
                   <Space>
-                    <Text type="secondary">{formatFileSize(file.size)}</Text>
-                    <Text type="secondary">•</Text>
-                    <Text type="secondary">{formatModifiedTime(file.modified)}</Text>
+                    <Text 
+                      style={{ 
+                        color: 'var(--theme-textSecondary, #595959)',
+                        opacity: 1
+                      }}
+                    >
+                      {formatFileSize(file.size)}
+                    </Text>
+                    <Text 
+                      style={{ 
+                        color: 'var(--theme-textSecondary, #595959)',
+                        opacity: 1
+                      }}
+                    >
+                      •
+                    </Text>
+                    <Text 
+                      style={{ 
+                        color: 'var(--theme-textSecondary, #595959)',
+                        opacity: 1
+                      }}
+                    >
+                      {formatModifiedTime(file.modified)}
+                    </Text>
                   </Space>
                 }
               />

@@ -21,6 +21,7 @@ import { ParameterSchema, CreateNodeRequest } from '@/types/node'
 import { nodeApi } from '@/services/api'
 import { nodeGenerator } from '@/services/nodeGenerator'
 import { useWorkflowStore } from '@/stores/workflowStore'
+import { useThemeStore } from '@/stores/themeStore'
 import './NodeCreator.css'
 
 const { TextArea } = Input
@@ -70,6 +71,10 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
     outputs: Record<string, any>
   } | null>(null)
   const { updateNodeTypeInstances } = useWorkflowStore()
+  const { theme } = useThemeStore()
+  
+  // 根据主题确定Monaco Editor的主题
+  const editorTheme = theme === 'dark' ? 'vs-dark' : 'vs'
 
   // 加载编辑节点的数据或查看内置节点数据
   useEffect(() => {
@@ -985,7 +990,7 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
                       }
                     }
                   }}
-                  theme="vs-dark"
+                  theme={editorTheme}
                   options={{
                     minimap: { enabled: false },
                     fontSize: 14,

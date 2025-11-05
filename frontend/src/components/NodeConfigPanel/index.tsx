@@ -1,6 +1,8 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react'
 import { Card, Form, Input, Button, Empty, Tabs, message, Typography, Tag, Alert } from 'antd'
 import { useWorkflowStore } from '@/stores/workflowStore'
+import { useNodeInfoStore } from '@/stores/nodeInfoStore'
+import { useThemeStore } from '@/stores/themeStore'
 import { nodeApi } from '@/services/api'
 import Editor from '@monaco-editor/react'
 import { YamlService } from '@/services/yamlService'
@@ -18,12 +20,17 @@ interface NodeConfigPanelProps {
 
 const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ nodeId, edgeId }) => {
   const { nodes, edges, updateNodeData, updateNodeId } = useWorkflowStore()
+  const { nodeTypes, customNodeDetails, getNodeDescription, isCustomNode: checkIsCustomNode, setCustomNodeDetails, setNodeTypes } = useNodeInfoStore()
+  const { theme } = useThemeStore()
   const [form] = Form.useForm()
   const [yamlContent, setYamlContent] = useState('')
   const [isCustomNode, setIsCustomNode] = useState(false)
   const [nodeCreatorVisible, setNodeCreatorVisible] = useState(false)
   const [instanceCount, setInstanceCount] = useState(0)
   const [nodeDescription, setNodeDescription] = useState<string>('')
+  
+  // 根据主题确定Monaco Editor的主题
+  const editorTheme = theme === 'dark' ? 'vs-dark' : 'vs'
 
   const node = nodes.find((n) => n.id === nodeId)
   const nodeType = node?.data?.type || node?.type
@@ -115,64 +122,76 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ nodeId, edgeId }) => 
         return
       }
 
+      // 首先尝试从缓存中获取节点描述
+      const cachedDescription = getNodeDescription(nodeType)
+      if (cachedDescription) {
+        setNodeDescription(cachedDescription)
+      }
+
+      // 从缓存中判断是否为自定义节点
+      const cachedIsCustom = checkIsCustomNode(nodeType)
+      setIsCustomNode(cachedIsCustom)
+
+      // 统计使用该节点类型的实例数量
+      const currentNodes = useWorkflowStore.getState().nodes
+      const count = currentNodes.filter((n) => (n.data?.type || n.type) === nodeType).length
+      if (!cancelled) {
+        setInstanceCount(cachedIsCustom ? count : 0)
+      }
+
       try {
-        // 尝试获取自定义节点列表
-        const customNodesResponse = await nodeApi.getCustomNodes()
-        if (cancelled) return
-        
-        const customNodes = customNodesResponse.nodes || []
-        const isCustom = customNodes.some((n: any) => n.id === nodeType)
-        setIsCustomNode(isCustom)
-        
-        // 统计使用该节点类型的实例数量 - 从 store 获取最新值，而不是依赖 props
-        if (isCustom) {
-          const currentNodes = useWorkflowStore.getState().nodes
-          const count = currentNodes.filter((n) => (n.data?.type || n.type) === nodeType).length
-          if (!cancelled) {
-            setInstanceCount(count)
-          }
-          
-          // 如果是自定义节点，尝试从自定义节点信息中获取描述
-          try {
-            const customNodeInfo = await nodeApi.getCustomNode(nodeType)
-            if (!cancelled && customNodeInfo?.description) {
-              setNodeDescription(customNodeInfo.description)
-            } else if (!cancelled) {
-              setNodeDescription('')
+        // 如果缓存中没有描述，尝试获取
+        if (!cachedDescription) {
+          if (cachedIsCustom) {
+            // 自定义节点：先检查缓存，没有才调用API
+            const cachedCustomNodeDetails = customNodeDetails[nodeType]
+            if (cachedCustomNodeDetails?.description) {
+              if (!cancelled) {
+                setNodeDescription(cachedCustomNodeDetails.description)
+              }
+            } else {
+              // 缓存中没有，调用API获取
+              try {
+                const customNodeInfo = await nodeApi.getCustomNode(nodeType)
+                if (cancelled) return
+                
+                // 更新缓存
+                setCustomNodeDetails(nodeType, customNodeInfo)
+                
+                if (customNodeInfo?.description && !cancelled) {
+                  setNodeDescription(customNodeInfo.description)
+                }
+              } catch (error) {
+                console.warn('获取自定义节点信息失败:', error)
+              }
             }
-          } catch (error) {
-            // 获取自定义节点信息失败，尝试从节点类型列表中获取
-            if (!cancelled) {
-              setNodeDescription('')
-            }
-          }
-        } else {
-          if (!cancelled) {
-            setInstanceCount(0)
-          }
-          
-          // 如果是内置节点，从节点类型列表中获取描述
-          try {
-            const nodeTypes = await nodeApi.getNodeTypes()
-            const foundNodeType = nodeTypes.find((nt: any) => nt.id === nodeType)
-            if (!cancelled && foundNodeType?.description) {
-              setNodeDescription(foundNodeType.description)
-            } else if (!cancelled) {
-              setNodeDescription('')
-            }
-          } catch (error) {
-            if (!cancelled) {
-              setNodeDescription('')
+          } else {
+            // 内置节点：从节点类型列表中获取
+            if (nodeTypes.length === 0) {
+              // 如果节点类型列表为空，尝试加载
+              try {
+                const types = await nodeApi.getNodeTypes()
+                if (cancelled) return
+                
+                setNodeTypes(types)
+                const foundNodeType = types.find((nt: any) => nt.id === nodeType)
+                if (!cancelled && foundNodeType?.description) {
+                  setNodeDescription(foundNodeType.description)
+                }
+              } catch (error) {
+                console.warn('获取节点类型列表失败:', error)
+              }
+            } else {
+              // 从缓存中查找
+              const foundNodeType = nodeTypes.find((nt: any) => nt.id === nodeType)
+              if (!cancelled && foundNodeType?.description) {
+                setNodeDescription(foundNodeType.description)
+              }
             }
           }
         }
       } catch (error) {
-        // 如果获取失败，假设不是自定义节点
-        if (!cancelled) {
-          setIsCustomNode(false)
-          setInstanceCount(0)
-          setNodeDescription('')
-        }
+        console.warn('检查节点信息失败:', error)
       }
     }
 
@@ -181,7 +200,7 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ nodeId, edgeId }) => 
     return () => {
       cancelled = true
     }
-  }, [nodeId, nodeType]) // 只依赖 nodeId 和 nodeType，不依赖整个 nodes 数组
+  }, [nodeId, nodeType, nodeTypes, customNodeDetails, getNodeDescription, checkIsCustomNode, setCustomNodeDetails, setNodeTypes]) // 添加缓存相关的依赖
 
   useEffect(() => {
     // 判断节点是否真正变化
@@ -582,6 +601,7 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ nodeId, edgeId }) => 
                     language="yaml"
                     value={yamlContent}
                     onChange={(value) => setYamlContent(value || '')}
+                    theme={editorTheme}
                     options={{
                       minimap: { enabled: false },
                       fontSize: 12,
