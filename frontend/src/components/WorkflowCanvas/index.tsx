@@ -184,7 +184,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
   }, [onNodeSelect, onEdgeSelect, connectionMenu])
 
   // 处理连接开始
-  const handleConnectStart = useCallback((_event: React.MouseEvent, { nodeId, handleId }: { nodeId: string | null, handleId: string | null }) => {
+  const handleConnectStart = useCallback((_event: React.MouseEvent | React.TouchEvent, { nodeId, handleId }: { nodeId: string | null, handleId: string | null }) => {
     if (nodeId && handleId) {
       connectionStartRef.current = {
         sourceNodeId: nodeId,
