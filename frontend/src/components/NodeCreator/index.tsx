@@ -597,21 +597,26 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
           <Table
             size="small"
             dataSource={schemaFields.map(([fieldName, fieldType], idx) => ({
-              key: `${item.key}_${fieldName}_${idx}`,
+              key: `${item.key}_${idx}`, // 使用索引作为稳定的key，不依赖字段名
               fieldName,
               fieldType,
             }))}
+            rowKey={(record) => record.key} // 明确指定 rowKey
             pagination={false}
             columns={[
               {
                 title: '字段名',
                 dataIndex: 'fieldName',
                 key: 'fieldName',
-                render: (text: string) => (
+                render: (text: string, record: any) => (
                   <Input
+                    key={`input-${record.key}`} // 为输入框添加稳定的key，基于行的key
                     size="small"
                     value={text}
-                    onChange={(e) => onFieldChange(item.key, text, 'name', e.target.value)}
+                    onChange={(e) => {
+                      // text 是当前的字段名，在 onChange 时使用它作为旧字段名
+                      onFieldChange(item.key, text, 'name', e.target.value)
+                    }}
                     disabled={readOnly}
                     placeholder="字段名"
                   />
@@ -621,22 +626,30 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
                 title: '类型',
                 dataIndex: 'fieldType',
                 key: 'fieldType',
-                render: (text: string) => (
-                  <Select
-                    size="small"
-                    value={text}
-                    onChange={(value) => onFieldChange(item.key, text, 'type', value)}
-                    disabled={readOnly}
-                    style={{ width: '100%' }}
-                  >
-                    <Option value="string">string</Option>
-                    <Option value="integer">integer</Option>
-                    <Option value="float">float</Option>
-                    <Option value="boolean">boolean</Option>
-                    <Option value="object">object</Option>
-                    <Option value="array">array</Option>
-                  </Select>
-                ),
+                render: (text: string, record: any) => {
+                  // 获取当前行的字段名（从 record.fieldName）
+                  const currentFieldName = record.fieldName
+                  return (
+                    <Select
+                      key={`select-${record.key}`} // 为选择框添加稳定的key，基于行的key
+                      size="small"
+                      value={text}
+                      onChange={(value) => {
+                        // 使用当前行的字段名来定位要更新的字段
+                        onFieldChange(item.key, currentFieldName, 'type', value)
+                      }}
+                      disabled={readOnly}
+                      style={{ width: '100%' }}
+                    >
+                      <Option value="string">string</Option>
+                      <Option value="integer">integer</Option>
+                      <Option value="float">float</Option>
+                      <Option value="boolean">boolean</Option>
+                      <Option value="object">object</Option>
+                      <Option value="array">array</Option>
+                    </Select>
+                  )
+                },
               },
               ...(readOnly ? [] : [{
                 title: '操作',

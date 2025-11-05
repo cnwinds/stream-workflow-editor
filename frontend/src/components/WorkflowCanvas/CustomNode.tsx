@@ -205,10 +205,10 @@ const CustomNode: React.FC<NodeProps<CustomNodeData>> = ({ data, selected, id })
                     className={param.isStreaming ? 'streaming-handle' : ''}
                   />
                   <div className="custom-node-param-label">
-                    <span className="custom-node-param-name">{param.name}</span>
                     {param.isStreaming && (
                       <span className="custom-node-param-streaming">流</span>
                     )}
+                    <span className="custom-node-param-name">{param.name}</span>
                   </div>
                 </div>
               ))}
