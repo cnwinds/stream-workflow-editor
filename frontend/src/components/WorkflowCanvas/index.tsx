@@ -10,6 +10,7 @@ import ReactFlow, {
   Connection,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
+import { message } from 'antd'
 import { useWorkflowStore } from '@/stores/workflowStore'
 import { NodeType, ParameterSchema } from '@/types/node'
 import { WorkflowValidator } from '@/utils/validators'
@@ -65,6 +66,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
     sourceNodeId: string
     sourceHandleId: string
     targetNodeId: string
+    isTargetCustomNode: boolean | null // null 表示还未检查
   } | null>(null)
   
   // 连接拖拽状态
@@ -193,6 +195,22 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
     }
   }, [])
 
+  // 检查节点是否为自定义节点的辅助函数
+  const checkIsCustomNode = useCallback(async (nodeType: string): Promise<boolean> => {
+    if (!nodeType) {
+      return false
+    }
+    try {
+      // 尝试获取自定义节点列表
+      const customNodesResponse = await nodeApi.getCustomNodes()
+      const customNodes = customNodesResponse.nodes || []
+      return customNodes.some((n: any) => n.id === nodeType)
+    } catch (error) {
+      // 如果获取失败，假设不是自定义节点
+      return false
+    }
+  }, [])
+
   // 处理连接结束 - 使用全局 mouseup 事件
   useEffect(() => {
     const handleMouseUp = (event: MouseEvent) => {
@@ -258,6 +276,10 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
           return
         }
 
+        // 检查目标节点是否为自定义节点
+        const targetNode = nodes.find(n => n.id === targetNodeId)
+        const targetNodeType = targetNode?.data?.type || targetNode?.type
+        
         // 显示上下文菜单
         setConnectionMenu({
           visible: true,
@@ -266,7 +288,20 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
           sourceNodeId,
           sourceHandleId,
           targetNodeId,
+          isTargetCustomNode: null, // 初始状态为 null，等待异步检查
         })
+        
+        // 异步检查节点类型并更新菜单状态
+        if (targetNodeType) {
+          checkIsCustomNode(targetNodeType).then((isCustom) => {
+            setConnectionMenu((prev) => {
+              if (prev && prev.targetNodeId === targetNodeId) {
+                return { ...prev, isTargetCustomNode: isCustom }
+              }
+              return prev
+            })
+          })
+        }
       }, 100)
     }
 
@@ -274,9 +309,10 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
     return () => {
       document.removeEventListener('mouseup', handleMouseUp)
     }
-  }, [nodes])
+  }, [nodes, checkIsCustomNode])
 
   // 处理创建输入参数并连接
+
   const handleCreateInputAndConnect = useCallback(async () => {
     if (!connectionMenu) {
       return
@@ -290,6 +326,18 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
 
     if (!sourceNode || !targetNode) {
       return
+    }
+
+    // 检查目标节点是否为内置节点
+    const targetNodeType = targetNode.data.type || targetNode.type
+    if (targetNodeType) {
+      const isCustomNode = await checkIsCustomNode(targetNodeType)
+      if (!isCustomNode) {
+        // 如果是内置节点，拦截操作并提示
+        message.warning('内置节点的接口不能修改，无法创建输入参数')
+        setConnectionMenu(null)
+        return
+      }
     }
 
     // 获取源输出的参数信息
@@ -330,7 +378,6 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
       })
 
       // 检查目标节点是否为自定义节点，如果是，需要更新服务器端的 Python 代码
-      const targetNodeType = targetNode.data.type
       if (targetNodeType) {
         try {
           // 尝试获取自定义节点信息，如果失败说明不是自定义节点
@@ -362,7 +409,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
 
     // 关闭菜单
     setConnectionMenu(null)
-  }, [connectionMenu, nodes, onConnect, updateNodeData])
+  }, [connectionMenu, nodes, onConnect, updateNodeData, checkIsCustomNode])
 
   const onInit = useCallback((instance: ReactFlowInstance) => {
     reactFlowInstance.current = instance
@@ -575,6 +622,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
             y={connectionMenu.y}
             onSelect={handleCreateInputAndConnect}
             onClose={() => setConnectionMenu(null)}
+            disabled={connectionMenu.isTargetCustomNode === false} // 如果是内置节点则禁用
           />
         )}
         </HandleHoverContext.Provider>

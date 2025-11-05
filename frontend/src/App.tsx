@@ -1,5 +1,5 @@
 import { Layout } from 'antd'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import WorkflowCanvas from './components/WorkflowCanvas'
 import NodePalette from './components/NodePalette'
 import NodeConfigPanel from './components/NodeConfigPanel'
@@ -11,6 +11,21 @@ const { Header, Content, Sider } = Layout
 function App() {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null)
+
+  // 监听节点ID更新事件，同步更新选中状态
+  useEffect(() => {
+    const handleNodeIdUpdated = (event: CustomEvent) => {
+      const { oldId, newId } = event.detail
+      if (selectedNodeId === oldId) {
+        setSelectedNodeId(newId)
+      }
+    }
+
+    window.addEventListener('nodeIdUpdated', handleNodeIdUpdated as EventListener)
+    return () => {
+      window.removeEventListener('nodeIdUpdated', handleNodeIdUpdated as EventListener)
+    }
+  }, [selectedNodeId])
 
   // 根据选中类型确定属性栏宽度
   // 连线属性使用更宽的宽度，节点属性使用默认宽度

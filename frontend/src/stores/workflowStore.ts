@@ -26,6 +26,7 @@ interface WorkflowState {
   addNode: (node: Node) => void
   removeNode: (nodeId: string) => void
   updateNodeData: (nodeId: string, data: Record<string, any>) => void
+  updateNodeId: (oldNodeId: string, newNodeId: string) => { success: boolean; error?: string }
   loadWorkflow: (config: WorkflowConfig) => Promise<void>
   exportWorkflow: () => WorkflowConfig
   setCurrentFileName: (filename: string | null) => void
@@ -179,6 +180,54 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
         get().saveHistory()
       }, 0)
     }
+  },
+
+  updateNodeId: (oldNodeId, newNodeId) => {
+    const { nodes, edges } = get()
+    
+    // 验证新节点ID格式（只能包含字母、数字和下划线，且不能以数字开头）
+    if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(newNodeId)) {
+      return { success: false, error: '节点ID只能包含字母、数字和下划线，且不能以数字开头' }
+    }
+    
+    // 检查新节点ID是否已存在
+    if (nodes.some((node) => node.id === newNodeId && node.id !== oldNodeId)) {
+      return { success: false, error: `节点ID "${newNodeId}" 已存在，请使用其他ID` }
+    }
+    
+    // 检查旧节点是否存在
+    const oldNode = nodes.find((node) => node.id === oldNodeId)
+    if (!oldNode) {
+      return { success: false, error: '找不到要更新的节点' }
+    }
+    
+    // 更新节点ID
+    const updatedNodes = nodes.map((node) =>
+      node.id === oldNodeId ? { ...node, id: newNodeId } : node
+    )
+    
+    // 更新所有引用该节点ID的连接
+    const updatedEdges = edges.map((edge) => {
+      if (edge.source === oldNodeId) {
+        return { ...edge, source: newNodeId }
+      }
+      if (edge.target === oldNodeId) {
+        return { ...edge, target: newNodeId }
+      }
+      return edge
+    })
+    
+    set({
+      nodes: updatedNodes,
+      edges: updatedEdges,
+    })
+    
+    // 保存历史
+    setTimeout(() => {
+      get().saveHistory()
+    }, 0)
+    
+    return { success: true }
   },
 
   loadWorkflow: async (config) => {

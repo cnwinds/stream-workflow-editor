@@ -9,7 +9,7 @@ import ConfigEditor from '@/components/ConfigEditor'
 import { WorkflowValidator } from '@/utils/validators'
 import './NodeConfigPanel.css'
 
-const { Text } = Typography
+const { Text, Title, Paragraph } = Typography
 
 interface NodeConfigPanelProps {
   nodeId: string | null
@@ -17,12 +17,13 @@ interface NodeConfigPanelProps {
 }
 
 const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ nodeId, edgeId }) => {
-  const { nodes, edges, updateNodeData } = useWorkflowStore()
+  const { nodes, edges, updateNodeData, updateNodeId } = useWorkflowStore()
   const [form] = Form.useForm()
   const [yamlContent, setYamlContent] = useState('')
   const [isCustomNode, setIsCustomNode] = useState(false)
   const [nodeCreatorVisible, setNodeCreatorVisible] = useState(false)
   const [instanceCount, setInstanceCount] = useState(0)
+  const [nodeDescription, setNodeDescription] = useState<string>('')
 
   const node = nodes.find((n) => n.id === nodeId)
   const nodeType = node?.data?.type || node?.type
@@ -101,7 +102,7 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ nodeId, edgeId }) => 
     }
   }, [edgeId, nodeId])
 
-  // 检查节点是否为自定义节点，并统计实例数量
+  // 检查节点是否为自定义节点，并统计实例数量，同时获取节点描述
   useEffect(() => {
     // 使用 ref 标记，避免重复调用
     let cancelled = false
@@ -110,6 +111,7 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ nodeId, edgeId }) => 
       if (!nodeId || !nodeType) {
         setIsCustomNode(false)
         setInstanceCount(0)
+        setNodeDescription('')
         return
       }
 
@@ -129,9 +131,39 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ nodeId, edgeId }) => 
           if (!cancelled) {
             setInstanceCount(count)
           }
+          
+          // 如果是自定义节点，尝试从自定义节点信息中获取描述
+          try {
+            const customNodeInfo = await nodeApi.getCustomNode(nodeType)
+            if (!cancelled && customNodeInfo?.description) {
+              setNodeDescription(customNodeInfo.description)
+            } else if (!cancelled) {
+              setNodeDescription('')
+            }
+          } catch (error) {
+            // 获取自定义节点信息失败，尝试从节点类型列表中获取
+            if (!cancelled) {
+              setNodeDescription('')
+            }
+          }
         } else {
           if (!cancelled) {
             setInstanceCount(0)
+          }
+          
+          // 如果是内置节点，从节点类型列表中获取描述
+          try {
+            const nodeTypes = await nodeApi.getNodeTypes()
+            const foundNodeType = nodeTypes.find((nt: any) => nt.id === nodeType)
+            if (!cancelled && foundNodeType?.description) {
+              setNodeDescription(foundNodeType.description)
+            } else if (!cancelled) {
+              setNodeDescription('')
+            }
+          } catch (error) {
+            if (!cancelled) {
+              setNodeDescription('')
+            }
           }
         }
       } catch (error) {
@@ -139,6 +171,7 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ nodeId, edgeId }) => 
         if (!cancelled) {
           setIsCustomNode(false)
           setInstanceCount(0)
+          setNodeDescription('')
         }
       }
     }
@@ -153,11 +186,11 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ nodeId, edgeId }) => 
   useEffect(() => {
     // 判断节点是否真正变化
     const currentNodeId = node?.id || null
-    const nodeChanged = prevNodeIdRef.current !== currentNodeId
+    const nodeChanged = prevNodeIdRef.current !== currentNodeId || prevNodeIdRef.current !== nodeId
     
     if (nodeChanged) {
       // 节点变化了，更新引用
-      prevNodeIdRef.current = currentNodeId
+      prevNodeIdRef.current = currentNodeId || nodeId
       
       if (node) {
         // 只有当节点变化时才重置表单
@@ -184,13 +217,24 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ nodeId, edgeId }) => 
         setYamlContent('')
       }
     }
-  }, [node, form])
+  }, [node, nodeId, form])
 
   const handleFormChange = (_changedValues: any, allValues: any) => {
     if (node) {
       // config 现在是字典格式，直接使用
       const config = allValues.config || {}
       
+      // 如果节点ID发生变化，需要特殊处理
+      if (_changedValues.id && _changedValues.id !== node.id) {
+        // 节点ID变化时，先验证格式和唯一性
+        const newNodeId = _changedValues.id.trim()
+        if (newNodeId && /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(newNodeId)) {
+          // 格式正确，但这里不立即更新，等用户点击保存时再更新
+          // 因为需要同时更新所有连接
+        }
+      }
+      
+      // 其他字段的实时更新
       updateNodeData(node.id, {
         label: allValues.label || node.data.label,
         config: config,
@@ -203,13 +247,40 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ nodeId, edgeId }) => 
       if (node) {
         // config 现在是字典格式，直接使用
         const config = values.config || {}
+        const newNodeId = values.id?.trim()
         
-        updateNodeData(node.id, {
+        // 如果节点ID发生变化，使用updateNodeId来更新（会同步更新所有连接）
+        if (newNodeId && newNodeId !== node.id) {
+          const result = updateNodeId(node.id, newNodeId)
+          if (!result.success) {
+            message.error(result.error || '更新节点ID失败')
+            // 恢复表单中的节点ID
+            form.setFieldsValue({ id: node.id })
+            return
+          }
+          message.success('节点ID已更新，所有连接已同步更新')
+          
+          // 通知App组件更新选中的节点ID（如果当前选中的是旧节点ID）
+          if (nodeId === node.id) {
+            // 通过自定义事件通知父组件更新选中状态
+            window.dispatchEvent(new CustomEvent('nodeIdUpdated', { 
+              detail: { oldId: node.id, newId: newNodeId } 
+            }))
+          }
+        }
+        
+        // 更新其他字段
+        updateNodeData(newNodeId || node.id, {
           label: values.label || node.data.label,
           config: config,
         })
-        message.success('配置已保存')
+        
+        if (!newNodeId || newNodeId === node.id) {
+          message.success('配置已保存')
+        }
       }
+    }).catch((errorInfo) => {
+      console.error('表单验证失败:', errorInfo)
     })
   }
 
@@ -412,37 +483,93 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ nodeId, edgeId }) => 
               key: 'info',
               label: '信息',
               children: (
-                <Form
-                  form={form}
-                  layout="vertical"
-                  onValuesChange={handleFormChange}
-                  onFinish={handleSave}
-                >
-                  <Form.Item label="节点ID" name="id">
-                    <Input disabled value={node.id} />
-                  </Form.Item>
-                  <Form.Item label="节点类型" name="type">
-                    <Input disabled value={node.data.type || node.type} />
-                  </Form.Item>
-                  <Form.Item label="节点名称" name="label">
-                    <Input 
-                      placeholder="输入节点名称" 
-                    />
-                  </Form.Item>
-                  <Form.Item label="节点配置" name="config">
-                    <ConfigEditor
-                      placeholder="输入节点配置（JSON格式）"
-                      onChange={(config) => {
-                        updateNodeData(node.id, { config })
-                      }}
-                    />
-                  </Form.Item>
-                  <Form.Item>
-                    <Button type="primary" htmlType="submit" block>
-                      保存配置
-                    </Button>
-                  </Form.Item>
-                </Form>
+                <>
+                  <Form
+                    form={form}
+                    layout="vertical"
+                    onValuesChange={handleFormChange}
+                    onFinish={handleSave}
+                  >
+                    <Form.Item 
+                      label="节点ID" 
+                      name="id"
+                      rules={[
+                        { required: true, message: '请输入节点ID' },
+                        { 
+                          pattern: /^[a-zA-Z_][a-zA-Z0-9_]*$/, 
+                          message: '节点ID只能包含字母、数字和下划线，且不能以数字开头' 
+                        },
+                        {
+                          validator: async (_, value) => {
+                            if (!value || value === node.id) {
+                              return Promise.resolve()
+                            }
+                            const { nodes: currentNodes } = useWorkflowStore.getState()
+                            if (currentNodes.some((n) => n.id === value && n.id !== node.id)) {
+                              return Promise.reject(new Error(`节点ID "${value}" 已存在，请使用其他ID`))
+                            }
+                            return Promise.resolve()
+                          }
+                        }
+                      ]}
+                    >
+                      <Input 
+                        placeholder="输入节点ID" 
+                        onBlur={(e) => {
+                          // 失焦时，如果值未改变，恢复原值
+                          const value = e.target.value.trim()
+                          if (!value || value === node.id) {
+                            form.setFieldsValue({ id: node.id })
+                          }
+                        }}
+                      />
+                    </Form.Item>
+                    <Form.Item label="节点类型" name="type">
+                      <Input disabled value={node.data.type || node.type} />
+                    </Form.Item>
+                    <Form.Item label="节点名称" name="label">
+                      <Input 
+                        placeholder="输入节点名称" 
+                      />
+                    </Form.Item>
+                    <Form.Item label="节点配置" name="config">
+                      <ConfigEditor
+                        placeholder="输入节点配置（JSON格式）"
+                        onChange={(config) => {
+                          updateNodeData(node.id, { config })
+                        }}
+                      />
+                    </Form.Item>
+                    <Form.Item>
+                      <Button type="primary" htmlType="submit" block>
+                        保存配置
+                      </Button>
+                    </Form.Item>
+                  </Form>
+                  {/* 节点说明区域 */}
+                  {nodeDescription && (
+                    <div style={{ 
+                      marginTop: 24, 
+                      padding: '16px', 
+                      background: '#f5f5f5', 
+                      borderRadius: '4px',
+                      border: '1px solid #e8e8e8'
+                    }}>
+                      <div 
+                        style={{ 
+                          fontSize: '12px',
+                          marginBottom: 0,
+                          whiteSpace: 'pre-wrap',
+                          wordBreak: 'break-word',
+                          color: '#595959',
+                          lineHeight: 1.6
+                        }}
+                      >
+                        {nodeDescription}
+                      </div>
+                    </div>
+                  )}
+                </>
               ),
             },
             {
