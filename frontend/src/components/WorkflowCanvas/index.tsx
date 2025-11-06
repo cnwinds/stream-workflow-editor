@@ -7,7 +7,6 @@ import ReactFlow, {
   ReactFlowProvider,
   ReactFlowInstance,
   MarkerType,
-  Connection,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
 import { message } from 'antd'
@@ -66,6 +65,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
     sourceNodeId: string
     sourceHandleId: string
     targetNodeId: string
+    handleType: 'source' | 'target' // 记录连接起始的 handle 类型
     isTargetCustomNode: boolean | null // null 表示还未检查
   } | null>(null)
   
@@ -73,6 +73,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
   const connectionStartRef = useRef<{
     sourceNodeId: string
     sourceHandleId: string
+    handleType: 'source' | 'target' // 记录连接起始的 handle 类型
   } | null>(null)
   
   const {
@@ -186,14 +187,34 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
   }, [onNodeSelect, onEdgeSelect, connectionMenu])
 
   // 处理连接开始
-  const handleConnectStart = useCallback((_event: React.MouseEvent | React.TouchEvent, { nodeId, handleId }: { nodeId: string | null, handleId: string | null }) => {
-    if (nodeId && handleId) {
-      connectionStartRef.current = {
-        sourceNodeId: nodeId,
-        sourceHandleId: handleId,
+  const handleConnectStart = useCallback((_event: React.MouseEvent | React.TouchEvent, params: { nodeId: string | null; handleId: string | null; handleType?: 'source' | 'target' | null }) => {
+    const { nodeId, handleId, handleType } = params
+    if (!nodeId || !handleId) return
+
+    // 如果没有提供 handleType，通过检查节点数据来判断
+    let detectedHandleType: 'source' | 'target' = 'source'
+    if (handleType) {
+      detectedHandleType = handleType
+    } else {
+      const node = nodes.find(n => n.id === nodeId)
+      if (node) {
+        // 如果在 outputParams 中找到，说明是 source；如果在 inputParams 中找到，说明是 target
+        const outputParams = node.data?.outputParams || {}
+        const inputParams = node.data?.inputParams || {}
+        if (outputParams[handleId]) {
+          detectedHandleType = 'source'
+        } else if (inputParams[handleId]) {
+          detectedHandleType = 'target'
+        }
       }
     }
-  }, [])
+
+    connectionStartRef.current = {
+      sourceNodeId: nodeId,
+      sourceHandleId: handleId,
+      handleType: detectedHandleType,
+    }
+  }, [nodes])
 
   // 检查节点是否为自定义节点的辅助函数
   const checkIsCustomNode = useCallback(async (nodeType: string): Promise<boolean> => {
@@ -218,7 +239,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
         return
       }
 
-      const { sourceNodeId, sourceHandleId } = connectionStartRef.current
+      const { sourceNodeId, sourceHandleId, handleType } = connectionStartRef.current
       
       // 延迟检查，等待 React Flow 的 onConnect 先处理
       setTimeout(() => {
@@ -269,16 +290,27 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
           return
         }
 
-        // 获取源输出的参数信息
-        const outputParams = sourceNode.data.outputParams || {}
-        const sourceParam = outputParams[sourceHandleId]
+        // 根据 handleType 获取参数信息
+        let sourceParam: ParameterSchema | undefined
+        if (handleType === 'source') {
+          // 从输出端口拉线，需要获取输出参数
+          const outputParams = sourceNode.data.outputParams || {}
+          sourceParam = outputParams[sourceHandleId]
+        } else {
+          // 从输入端口拉线，需要获取输入参数
+          const inputParams = sourceNode.data.inputParams || {}
+          sourceParam = inputParams[sourceHandleId]
+        }
+        
         if (!sourceParam) {
           return
         }
 
-        // 检查目标节点是否为自定义节点
+        // 根据 handleType 检查相应的节点是否为自定义节点
         const targetNode = nodes.find(n => n.id === targetNodeId)
-        const targetNodeType = targetNode?.data?.type || targetNode?.type
+        
+        // 两种情况下都检查目标节点：source 时在目标节点创建输入参数，target 时在目标节点创建输出参数
+        const nodeTypeToCheck = targetNode?.data?.type || targetNode?.type
         
         // 显示上下文菜单
         setConnectionMenu({
@@ -288,14 +320,15 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
           sourceNodeId,
           sourceHandleId,
           targetNodeId,
-          isTargetCustomNode: null, // 初始状态为 null，等待异步检查
+          handleType,
+          isTargetCustomNode: null, // 初始状态为 null，等待异步检查（注意：对于 target 类型，这里实际检查的是源节点）
         })
         
         // 异步检查节点类型并更新菜单状态
-        if (targetNodeType) {
-          checkIsCustomNode(targetNodeType).then((isCustom) => {
+        if (nodeTypeToCheck) {
+          checkIsCustomNode(nodeTypeToCheck).then((isCustom) => {
             setConnectionMenu((prev) => {
-              if (prev && prev.targetNodeId === targetNodeId) {
+              if (prev && prev.targetNodeId === targetNodeId && prev.sourceNodeId === sourceNodeId) {
                 return { ...prev, isTargetCustomNode: isCustom }
               }
               return prev
@@ -311,105 +344,162 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
     }
   }, [nodes, checkIsCustomNode])
 
-  // 处理创建输入参数并连接
-
-  const handleCreateInputAndConnect = useCallback(async () => {
-    if (!connectionMenu) {
-      return
+  // 更新节点参数定义的辅助函数（用于自定义节点）
+  const updateNodeParameters = useCallback(async (
+    nodeType: string,
+    inputParams: Record<string, ParameterSchema>,
+    outputParams: Record<string, ParameterSchema>
+  ) => {
+    try {
+      const customNodeInfo = await nodeApi.getCustomNode(nodeType)
+      if (customNodeInfo) {
+        await nodeApi.updateCustomNodeParameters(nodeType, {
+          inputs: inputParams,
+          outputs: outputParams,
+        })
+      }
+    } catch (error) {
+      console.warn(`节点 ${nodeType} 不是自定义节点，只更新内存中的数据:`, error)
     }
+  }, [])
+
+  // 处理创建输入参数并连接
+  const handleCreateInputAndConnect = useCallback(async () => {
+    if (!connectionMenu) return
 
     const { sourceNodeId, sourceHandleId, targetNodeId } = connectionMenu
-
-    // 获取源节点和目标节点
     const sourceNode = nodes.find(n => n.id === sourceNodeId)
     const targetNode = nodes.find(n => n.id === targetNodeId)
 
-    if (!sourceNode || !targetNode) {
-      return
-    }
+    if (!sourceNode || !targetNode) return
 
-    // 检查目标节点是否为内置节点
+    // 检查目标节点是否为自定义节点
     const targetNodeType = targetNode.data.type || targetNode.type
     if (targetNodeType) {
       const isCustomNode = await checkIsCustomNode(targetNodeType)
       if (!isCustomNode) {
-        // 如果是内置节点，拦截操作并提示
         message.warning('内置节点的接口不能修改，无法创建输入参数')
         setConnectionMenu(null)
         return
       }
     }
 
-    // 获取源输出的参数信息
-    const outputParams = sourceNode.data.outputParams || {}
-    const sourceParam = outputParams[sourceHandleId] as ParameterSchema
+    // 获取源节点的输出参数
+    const sourceParam = sourceNode.data.outputParams?.[sourceHandleId] as ParameterSchema
+    if (!sourceParam) return
 
-    if (!sourceParam) {
-      return
-    }
-
-    // 获取目标节点的输入参数
+    // 获取目标节点的参数
     const targetInputParams = targetNode.data.inputParams || {}
     const targetOutputParams = targetNode.data.outputParams || {}
 
-    // 检查是否已存在同名输入参数
+    // 如果目标节点已有同名输入参数，直接连接
     if (targetInputParams[sourceHandleId]) {
-      // 如果已存在，直接连接
-      const newConnection: Connection = {
+      onConnect({
         source: sourceNodeId,
         sourceHandle: sourceHandleId,
         target: targetNodeId,
         targetHandle: sourceHandleId,
-      }
-      onConnect(newConnection)
-    } else {
-      // 创建新的输入参数（复制源输出的参数）
-      const newInputParams = {
-        ...targetInputParams,
-        [sourceHandleId]: {
-          isStreaming: sourceParam.isStreaming,
-          schema: { ...sourceParam.schema },
-        },
-      }
-
-      // 更新目标节点的输入参数（内存中）
-      updateNodeData(targetNodeId, {
-        inputParams: newInputParams,
       })
-
-      // 检查目标节点是否为自定义节点，如果是，需要更新服务器端的 Python 代码
-      if (targetNodeType) {
-        try {
-          // 尝试获取自定义节点信息，如果失败说明不是自定义节点
-          const customNodeInfo = await nodeApi.getCustomNode(targetNodeType)
-          
-          // 如果是自定义节点，更新服务器端的定义
-          if (customNodeInfo) {
-            // 使用新的接口，只更新参数定义部分，保留其他代码
-            await nodeApi.updateCustomNodeParameters(targetNodeType, {
-              inputs: newInputParams,
-              outputs: targetOutputParams,
-            })
-          }
-        } catch (error) {
-          // 如果不是自定义节点或获取失败，只更新内存中的数据
-          console.warn('目标节点不是自定义节点，只更新内存中的数据:', error)
-        }
-      }
-
-      // 创建连接
-      const newConnection: Connection = {
-        source: sourceNodeId,
-        sourceHandle: sourceHandleId,
-        target: targetNodeId,
-        targetHandle: sourceHandleId,
-      }
-      onConnect(newConnection)
+      setConnectionMenu(null)
+      return
     }
 
-    // 关闭菜单
+    // 创建新的输入参数（复制源输出的参数）
+    const newInputParams = {
+      ...targetInputParams,
+      [sourceHandleId]: {
+        isStreaming: sourceParam.isStreaming,
+        schema: { ...sourceParam.schema },
+      },
+    }
+
+    // 更新目标节点的输入参数
+    updateNodeData(targetNodeId, { inputParams: newInputParams })
+
+    // 如果是自定义节点，更新服务器端定义
+    if (targetNodeType) {
+      await updateNodeParameters(targetNodeType, newInputParams, targetOutputParams)
+    }
+
+    // 创建连接：源节点输出 → 目标节点输入
+    onConnect({
+      source: sourceNodeId,
+      sourceHandle: sourceHandleId,
+      target: targetNodeId,
+      targetHandle: sourceHandleId,
+    })
+
     setConnectionMenu(null)
-  }, [connectionMenu, nodes, onConnect, updateNodeData, checkIsCustomNode])
+  }, [connectionMenu, nodes, onConnect, updateNodeData, checkIsCustomNode, updateNodeParameters])
+
+  // 处理创建输出参数并连接
+  const handleCreateOutputAndConnect = useCallback(async () => {
+    if (!connectionMenu) return
+
+    const { sourceNodeId, sourceHandleId, targetNodeId } = connectionMenu
+    const sourceNode = nodes.find(n => n.id === sourceNodeId)
+    const targetNode = nodes.find(n => n.id === targetNodeId)
+
+    if (!sourceNode || !targetNode) return
+
+    // 检查目标节点是否为自定义节点（在目标节点上创建输出参数）
+    const targetNodeType = targetNode.data.type || targetNode.type
+    if (targetNodeType) {
+      const isCustomNode = await checkIsCustomNode(targetNodeType)
+      if (!isCustomNode) {
+        message.warning('内置节点的接口不能修改，无法创建输出参数')
+        setConnectionMenu(null)
+        return
+      }
+    }
+
+    // 获取源节点的输入参数（从输入端口拉线）
+    const sourceParam = sourceNode.data.inputParams?.[sourceHandleId] as ParameterSchema
+    if (!sourceParam) return
+
+    // 获取目标节点的参数
+    const targetOutputParams = targetNode.data.outputParams || {}
+    const targetInputParams = targetNode.data.inputParams || {}
+
+    // 如果目标节点已有同名输出参数，直接连接
+    if (targetOutputParams[sourceHandleId]) {
+      onConnect({
+        source: targetNodeId,
+        sourceHandle: sourceHandleId,
+        target: sourceNodeId,
+        targetHandle: sourceHandleId,
+      })
+      setConnectionMenu(null)
+      return
+    }
+
+    // 创建新的输出参数（复制源输入的参数）
+    const newOutputParams = {
+      ...targetOutputParams,
+      [sourceHandleId]: {
+        isStreaming: sourceParam.isStreaming,
+        schema: { ...sourceParam.schema },
+      },
+    }
+
+    // 更新目标节点的输出参数
+    updateNodeData(targetNodeId, { outputParams: newOutputParams })
+
+    // 如果是自定义节点，更新服务器端定义
+    if (targetNodeType) {
+      await updateNodeParameters(targetNodeType, targetInputParams, newOutputParams)
+    }
+
+    // 创建连接：目标节点输出 → 源节点输入
+    onConnect({
+      source: targetNodeId,
+      sourceHandle: sourceHandleId,
+      target: sourceNodeId,
+      targetHandle: sourceHandleId,
+    })
+
+    setConnectionMenu(null)
+  }, [connectionMenu, nodes, onConnect, updateNodeData, checkIsCustomNode, updateNodeParameters])
 
   const onInit = useCallback((instance: ReactFlowInstance) => {
     reactFlowInstance.current = instance
@@ -620,9 +710,14 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
           <ConnectionContextMenu
             x={connectionMenu.x}
             y={connectionMenu.y}
-            onSelect={handleCreateInputAndConnect}
+            onSelect={
+              connectionMenu.handleType === 'source' 
+                ? handleCreateInputAndConnect 
+                : handleCreateOutputAndConnect
+            }
             onClose={() => setConnectionMenu(null)}
             disabled={connectionMenu.isTargetCustomNode === false} // 如果是内置节点则禁用
+            menuType={connectionMenu.handleType === 'source' ? 'input' : 'output'}
           />
         )}
         </HandleHoverContext.Provider>

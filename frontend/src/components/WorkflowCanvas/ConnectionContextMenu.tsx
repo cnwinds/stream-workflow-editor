@@ -7,6 +7,7 @@ interface ConnectionContextMenuProps {
   onSelect: () => void
   onClose: () => void
   disabled?: boolean // 是否禁用选项
+  menuType?: 'input' | 'output' // 菜单类型：input 表示创建输入参数，output 表示创建输出参数
 }
 
 const ConnectionContextMenu: React.FC<ConnectionContextMenuProps> = ({
@@ -15,6 +16,7 @@ const ConnectionContextMenu: React.FC<ConnectionContextMenuProps> = ({
   onSelect,
   onClose,
   disabled = false,
+  menuType = 'input',
 }) => {
   React.useEffect(() => {
     const handleClickOutside = () => {
@@ -31,6 +33,11 @@ const ConnectionContextMenu: React.FC<ConnectionContextMenuProps> = ({
       document.removeEventListener('click', handleClickOutside)
     }
   }, [onClose])
+
+  const menuText = menuType === 'input' ? '创建输入参数并连接' : '创建输出参数并连接'
+  const disabledMessage = menuType === 'input' 
+    ? '内置节点的接口不能修改' 
+    : '内置节点的接口不能修改'
 
   return (
     <div
@@ -57,9 +64,9 @@ const ConnectionContextMenu: React.FC<ConnectionContextMenuProps> = ({
           opacity: disabled ? 0.5 : 1,
           color: disabled ? '#999' : undefined,
         }}
-        title={disabled ? '内置节点的接口不能修改' : undefined}
+        title={disabled ? disabledMessage : undefined}
       >
-        创建输入参数并连接
+        {menuText}
       </div>
     </div>
   )
