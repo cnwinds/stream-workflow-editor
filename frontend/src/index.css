@@ -45,4 +45,17 @@ code {
     monospace;
 }
 
+/* 全局按钮阴影根据主题调整 */
+.ant-btn-primary {
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.045);
+}
+
+.theme-dark .ant-btn-primary {
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.3);
+}
+
+.theme-eye-care .ant-btn-primary {
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.08);
+}
+
 

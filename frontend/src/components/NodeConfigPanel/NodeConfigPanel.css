@@ -87,6 +87,19 @@
   line-height: 1.5;
 }
 
+/* 按钮阴影根据主题调整 */
+.node-config-panel .ant-btn-primary {
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.045);
+}
+
+.theme-dark .node-config-panel .ant-btn-primary {
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.3);
+}
+
+.theme-eye-care .node-config-panel .ant-btn-primary {
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.08);
+}
+
 .node-config-panel table {
   font-size: 12px;
 }

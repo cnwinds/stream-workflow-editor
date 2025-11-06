@@ -618,9 +618,9 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ nodeId, edgeId }) => 
               children: (
                 <div style={{ padding: '20px' }}>
                   {isCustomNode && instanceCount > 0 && (
-                    <div style={{ marginBottom: 16, padding: 12, background: '#f5f5f5', borderRadius: 4 }}>
+                    <div style={{ marginBottom: 16, padding: 12, background: 'var(--theme-backgroundTertiary)', borderRadius: 4 }}>
                       <Text>
-                        工作流中有 <Text strong style={{ color: '#1890ff' }}>{instanceCount}</Text> 个该节点类型的实例
+                        工作流中有 <Text strong style={{ color: 'var(--theme-primary)' }}>{instanceCount}</Text> 个该节点类型的实例
                       </Text>
                     </div>
                   )}
