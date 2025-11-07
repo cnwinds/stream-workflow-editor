@@ -4,7 +4,7 @@ import WorkflowCanvas from './components/WorkflowCanvas'
 import NodePalette from './components/NodePalette'
 import NodeConfigPanel from './components/NodeConfigPanel'
 import Toolbar from './components/Toolbar'
-import { useThemeStore } from './stores/themeStore'
+import { useCurrentTheme } from './stores/themeStore'
 import './App.css'
 
 const { Header, Content, Sider } = Layout
@@ -12,7 +12,7 @@ const { Header, Content, Sider } = Layout
 function App() {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null)
-  const { getCurrentTheme } = useThemeStore()
+  const theme = useCurrentTheme()
 
   // 监听节点ID更新事件，同步更新选中状态
   useEffect(() => {
@@ -34,7 +34,9 @@ function App() {
   const hasSelection = selectedNodeId || selectedEdgeId
   const configPanelWidth = selectedEdgeId ? 500 : 350 // 连线属性更宽
 
-  const theme = getCurrentTheme()
+  // 提取公共样式
+  const bgStyle = { background: theme.colors.background }
+  const borderStyle = { border: `1px solid ${theme.colors.border}` }
 
   return (
     <ConfigProvider
@@ -54,25 +56,25 @@ function App() {
           height: '100vh', 
           display: 'flex', 
           flexDirection: 'column',
-          background: theme.colors.background,
+          ...bgStyle,
         }}
       >
         <Header 
           style={{ 
             padding: 0, 
-            background: theme.colors.background, 
-            borderBottom: `1px solid ${theme.colors.border}`, 
+            ...bgStyle,
+            borderBottom: borderStyle.border, 
             flexShrink: 0 
           }}
         >
           <Toolbar />
         </Header>
-        <Layout style={{ flex: 1, overflow: 'hidden', background: theme.colors.background }}>
+        <Layout style={{ flex: 1, overflow: 'hidden', ...bgStyle }}>
           <Sider 
             width={250} 
             style={{ 
-              background: theme.colors.background, 
-              borderRight: `1px solid ${theme.colors.border}`, 
+              ...bgStyle,
+              borderRight: borderStyle.border, 
               overflow: 'auto' 
             }}
           >
@@ -89,8 +91,8 @@ function App() {
             <Sider 
               width={configPanelWidth} 
               style={{ 
-                background: theme.colors.background, 
-                borderLeft: `1px solid ${theme.colors.border}`, 
+                ...bgStyle,
+                borderLeft: borderStyle.border, 
                 overflow: 'auto' 
               }}
             >

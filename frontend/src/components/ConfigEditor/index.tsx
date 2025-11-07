@@ -214,8 +214,56 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
     }
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      // 检查事件目标是否在 Modal 内部
+      // 检查事件目标
       const target = e.target as HTMLElement
+      
+      // 优先检查是否在 Monaco Editor 中（Monaco Editor 使用特定的类名和结构）
+      // 使用更全面的检测方式，包括包装器和所有可能的 Monaco 元素
+      // 向上遍历 DOM 树检查所有父元素
+      let currentCheck: HTMLElement | null = target
+      let isInMonacoEditor = false
+      
+      while (currentCheck && currentCheck !== document.body) {
+        const classList = currentCheck.classList
+        const className = currentCheck.className
+        
+        // 检查类名中是否包含 monaco 相关字符串
+        if (typeof className === 'string' && className.includes('monaco')) {
+          isInMonacoEditor = true
+          break
+        }
+        
+        // 检查特定的类名
+        if (
+          classList?.contains('monaco-editor') ||
+          classList?.contains('monaco-editor-textarea') ||
+          classList?.contains('monaco-inputbox') ||
+          classList?.contains('monaco-scrollable-element') ||
+          classList?.contains('monaco-editor-wrapper') ||
+          classList?.contains('monaco-editor-background')
+        ) {
+          isInMonacoEditor = true
+          break
+        }
+        
+        // 使用 closest 检查
+        if (
+          currentCheck.closest('.monaco-editor') !== null ||
+          currentCheck.closest('.monaco-editor-wrapper') !== null
+        ) {
+          isInMonacoEditor = true
+          break
+        }
+        
+        currentCheck = currentCheck.parentElement
+      }
+      
+      // 如果在 Monaco Editor 中，完全不拦截任何键盘事件（让编辑器正常处理所有输入，包括空格）
+      // 这个检查要放在最前面，优先于其他检查
+      if (isInMonacoEditor) {
+        // 不调用 preventDefault 或 stopPropagation，让事件正常传播到编辑器
+        return
+      }
       
       // 检查是否在输入框、文本区域或可编辑内容中
       const isInInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable
@@ -268,11 +316,13 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
       }
     }
 
-    // 使用 capture 模式捕获事件，在父组件之前处理
-    document.addEventListener('keydown', handleKeyDown, true)
+    // 使用普通模式（非 capture）添加事件监听器
+    // 这样可以确保 Monaco Editor 先处理键盘事件
+    // 只有当事件没有被编辑器处理时，才会到达这里
+    document.addEventListener('keydown', handleKeyDown, false)
     
     return () => {
-      document.removeEventListener('keydown', handleKeyDown, true)
+      document.removeEventListener('keydown', handleKeyDown, false)
     }
   }, [editorModalVisible, editingIndex, editingContent, items, updateConfig])
 
@@ -441,19 +491,33 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
               style={{ fontFamily: 'monospace', fontSize: 12 }}
             />
           ) : (
-            <Editor
-              height="600px"
-              language={editorLanguage}
-              value={editingContent}
-              onChange={(value) => setEditingContent(value || '')}
-              theme={editorTheme}
-              options={{
-                minimap: { enabled: false },
-                fontSize: 12,
-                wordWrap: 'on',
-                automaticLayout: true,
+            <div 
+              className="monaco-editor-wrapper"
+              onKeyDown={(e) => {
+                // 在 Monaco Editor 包装器上阻止事件冒泡到 document 层
+                // 这样 capture 模式的监听器就不会拦截编辑器的事件
+                e.stopPropagation()
               }}
-            />
+            >
+              <Editor
+                height="600px"
+                language={editorLanguage}
+                value={editingContent}
+                onChange={(value) => setEditingContent(value || '')}
+                theme={editorTheme}
+                options={{
+                  minimap: { enabled: false },
+                  fontSize: 12,
+                  wordWrap: 'on',
+                  automaticLayout: true,
+                  acceptSuggestionOnCommitCharacter: true,
+                  acceptSuggestionOnEnter: 'on',
+                  tabSize: 2,
+                  insertSpaces: true,
+                  readOnly: false,
+                }}
+              />
+            </div>
           )}
         </div>
       </Modal>

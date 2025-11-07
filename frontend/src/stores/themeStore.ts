@@ -162,34 +162,7 @@ const themes: Record<ThemeMode, Theme> = {
 interface ThemeState {
   theme: ThemeMode
   setTheme: (theme: ThemeMode) => void
-  getCurrentTheme: () => Theme
 }
-
-export const useThemeStore = create<ThemeState>()(
-  persist(
-    (set, get) => ({
-      theme: 'light',
-      setTheme: (theme: ThemeMode) => {
-        set({ theme })
-        // 应用主题到 CSS 变量
-        applyThemeToDocument(theme)
-      },
-      getCurrentTheme: () => {
-        return themes[get().theme]
-      },
-    }),
-    {
-      name: 'theme-storage',
-      storage: createJSONStorage(() => localStorage),
-      onRehydrateStorage: () => (state) => {
-        // 恢复主题时应用
-        if (state) {
-          applyThemeToDocument(state.theme)
-        }
-      },
-    }
-  )
-)
 
 // 应用主题到文档的 CSS 变量
 function applyThemeToDocument(themeMode: ThemeMode) {
@@ -200,22 +173,33 @@ function applyThemeToDocument(themeMode: ThemeMode) {
     root.style.setProperty(`--theme-${key}`, value)
   })
 
-  // 设置主题类名到 body
   document.body.className = `theme-${themeMode}`
 }
 
-// 初始化主题
-if (typeof window !== 'undefined') {
-  const stored = localStorage.getItem('theme-storage')
-  if (stored) {
-    try {
-      const parsed = JSON.parse(stored)
-      applyThemeToDocument(parsed.state?.theme || 'light')
-    } catch {
-      applyThemeToDocument('light')
+export const useThemeStore = create<ThemeState>()(
+  persist(
+    (set) => ({
+      theme: 'light',
+      setTheme: (theme: ThemeMode) => {
+        set({ theme })
+        applyThemeToDocument(theme)
+      },
+    }),
+    {
+      name: 'theme-storage',
+      storage: createJSONStorage(() => localStorage),
+      onRehydrateStorage: () => (state) => {
+        if (state) {
+          applyThemeToDocument(state.theme)
+        }
+      },
     }
-  } else {
-    applyThemeToDocument('light')
-  }
+  )
+)
+
+// 获取当前主题的 Hook（响应式）
+export const useCurrentTheme = (): Theme => {
+  const theme = useThemeStore((state) => state.theme)
+  return themes[theme]
 }
 

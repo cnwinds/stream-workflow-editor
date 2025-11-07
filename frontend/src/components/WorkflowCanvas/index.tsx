@@ -20,7 +20,7 @@ import EnhancedMiniMap from './EnhancedMiniMap'
 import ConnectionContextMenu from './ConnectionContextMenu'
 import NodeCreatorModal from '@/components/NodeCreator'
 import { useNodeInfoStore } from '@/stores/nodeInfoStore'
-import { useThemeStore } from '@/stores/themeStore'
+import { useCurrentTheme } from '@/stores/themeStore'
 import './WorkflowCanvas.css'
 
 const nodeTypes = {
@@ -62,7 +62,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
   const [nodeCreatorVisible, setNodeCreatorVisible] = React.useState(false)
   const [viewingNodeType, setViewingNodeType] = React.useState<string | null>(null)
   const { isCustomNode: isCustomNodeType } = useNodeInfoStore()
-  const { getCurrentTheme } = useThemeStore()
+  const theme = useCurrentTheme()
   
   // 连接上下文菜单相关状态
   const [connectionMenu, setConnectionMenu] = useState<{
@@ -139,6 +139,11 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
       // 避免在输入框中触发
       const target = event.target as HTMLElement
       
+      // 检查是否在 Monaco Editor 中
+      const isInMonacoEditor = target.closest('.monaco-editor') !== null ||
+                               target.closest('.monaco-editor-textarea') !== null ||
+                               target.closest('.monaco-inputbox') !== null
+      
       // 检查是否在输入框、文本区域或可编辑内容中
       const isInInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable
       
@@ -155,8 +160,8 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
         currentElement = currentElement.parentElement
       }
       
-      // 如果在输入框或 Modal 中，不处理删除操作
-      if (isInInput || isInModal) {
+      // 如果在输入框、Modal 或 Monaco Editor 中，不处理删除操作
+      if (isInInput || isInModal || isInMonacoEditor) {
         return
       }
 
@@ -776,8 +781,6 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
     onHandleMouseLeave: handleHandleMouseLeave,
   }), [handleHandleMouseEnter, handleHandleMouseLeave])
 
-  // 获取当前主题
-  const theme = getCurrentTheme()
 
   return (
     <div style={{ width: '100%', height: '100%' }}>

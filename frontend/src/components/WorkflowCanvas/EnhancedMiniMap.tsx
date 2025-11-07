@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { MiniMap, MiniMapProps, ReactFlowInstance } from 'reactflow'
-import { useThemeStore } from '@/stores/themeStore'
+import { useThemeStore, useCurrentTheme } from '@/stores/themeStore'
 
 interface EnhancedMiniMapProps extends MiniMapProps {
   reactFlowInstance?: ReactFlowInstance | null
@@ -17,8 +17,8 @@ const EnhancedMiniMap: React.FC<EnhancedMiniMapProps> = ({
   reactFlowInstance,
   ...props
 }) => {
-  const { getCurrentTheme, theme: themeMode } = useThemeStore()
-  const theme = getCurrentTheme()
+  const { theme: themeMode } = useThemeStore()
+  const theme = useCurrentTheme()
   const minimapRef = useRef<HTMLDivElement>(null)
   const [fitViewMode, setFitViewMode] = useState(false)
   const savedViewportRef = useRef<{ x: number; y: number; zoom: number } | null>(null)
