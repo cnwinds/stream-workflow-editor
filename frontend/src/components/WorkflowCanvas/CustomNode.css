@@ -14,7 +14,17 @@
 
 .custom-node.selected {
   border-color: var(--theme-nodeSelected, #1890ff);
+  /* 选中状态的阴影使用主题主色，透明度为 0.2 */
   box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+}
+
+/* 根据主题调整选中状态的阴影颜色 */
+.theme-dark .custom-node.selected {
+  box-shadow: 0 0 0 2px rgba(23, 125, 220, 0.3);
+}
+
+.theme-eye-care .custom-node.selected {
+  box-shadow: 0 0 0 2px rgba(82, 196, 26, 0.3);
 }
 
 .custom-node-header {
@@ -117,16 +127,16 @@
 
 .custom-node-param-streaming {
   font-size: 9px;
-  color: #52c41a;
-  background: #f6ffed;
+  color: #52c41a; /* 流式标签保持绿色以突出显示 */
+  background: var(--theme-backgroundSecondary, #f6ffed);
   padding: 1px 4px;
   border-radius: 2px;
-  border: 1px solid #b7eb8f;
+  border: 1px solid #b7eb8f; /* 流式标签边框保持绿色 */
   flex-shrink: 0;
 }
 
 .custom-node-param-required {
-  color: #ff4d4f;
+  color: #ff4d4f; /* 必填标记保持红色以突出显示 */
   font-weight: bold;
   font-size: 12px;
   flex-shrink: 0;
@@ -137,8 +147,8 @@
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background-color: #1890ff;
-  border: 2px solid #fff;
+  background-color: var(--theme-primary, #1890ff);
+  border: 2px solid var(--theme-background, #fff);
   transition: all 0.2s;
   position: absolute;
   top: 50%;
@@ -152,8 +162,8 @@
 }
 
 .react-flow__handle.streaming-handle {
-  background-color: #52c41a;
-  border-color: #fff;
+  background-color: #52c41a; /* 流式连接点保持绿色以突出显示 */
+  border-color: var(--theme-background, #fff);
 }
 
 .react-flow__handle-left {

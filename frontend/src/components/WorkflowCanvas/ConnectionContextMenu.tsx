@@ -62,7 +62,7 @@ const ConnectionContextMenu: React.FC<ConnectionContextMenuProps> = ({
         style={{
           cursor: disabled ? 'not-allowed' : 'pointer',
           opacity: disabled ? 0.5 : 1,
-          color: disabled ? '#999' : undefined,
+          color: disabled ? 'var(--theme-textTertiary, #8c8c8c)' : undefined,
         }}
         title={disabled ? disabledMessage : undefined}
       >

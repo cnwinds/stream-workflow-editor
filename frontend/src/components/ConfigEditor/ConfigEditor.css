@@ -24,8 +24,8 @@
 
 .config-editor-item.dragging {
   opacity: 0.5;
-  border: 1px dashed #1890ff;
-  background: var(--theme-backgroundSecondary, #e6f7ff);
+  border: 1px dashed var(--theme-primary, #1890ff);
+  background: var(--theme-backgroundSecondary, #fafafa);
 }
 
 .config-editor-item.drag-over {
@@ -35,7 +35,7 @@
 /* 插入线样式 */
 .config-editor-insert-line {
   height: 2px;
-  background: #1890ff;
+  background: var(--theme-primary, #1890ff);
   margin: 2px 0;
   border-radius: 1px;
   flex-shrink: 0;
@@ -54,7 +54,7 @@
 }
 
 .config-editor-item-drag-handle:hover {
-  color: #1890ff !important;
+  color: var(--theme-primary, #1890ff) !important;
 }
 
 .config-editor-item-drag-handle:active {

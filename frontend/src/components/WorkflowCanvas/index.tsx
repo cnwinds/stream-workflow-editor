@@ -682,7 +682,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
               // 如果连接无效，使用红色样式
               style: {
                 ...edgeOptions.style,
-                stroke: isValid ? undefined : '#ff4d4f', // 红色表示错误
+                stroke: isValid ? undefined : '#ff4d4f', // 错误连接线保持红色以突出显示
                 strokeWidth: isValid ? (isSelected ? 3 : (isHovered ? 2.5 : (isHandleHovered ? 2.5 : 2))) : 3, // 选中/高亮时稍微粗一点
               },
               // 添加数据标记，方便SmartEdge组件使用

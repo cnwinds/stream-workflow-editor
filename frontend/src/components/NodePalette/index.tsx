@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { Card, Input, Empty, message, Collapse } from 'antd'
 import { SearchOutlined } from '@ant-design/icons'
 import { nodeApi } from '@/services/api'
@@ -11,6 +11,7 @@ const NodePalette: React.FC = () => {
   const [nodeTypes, setNodeTypesLocal] = useState<NodeType[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [loading, setLoading] = useState(true)
+  const searchInputRef = useRef<any>(null)
 
   useEffect(() => {
     loadNodeTypes()
@@ -24,6 +25,52 @@ const NodePalette: React.FC = () => {
     
     return () => {
       window.removeEventListener('nodeCreated', handleNodeCreated)
+    }
+  }, [])
+
+  // 快捷键：Ctrl+K 或 Cmd+K 聚焦搜索框
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // 检查是否按下了 Ctrl+K (Windows/Linux) 或 Cmd+K (Mac)
+      const isModKey = event.ctrlKey || event.metaKey
+      if (isModKey && event.key === 'k') {
+        // 避免在输入框、文本区域或可编辑内容中触发
+        const target = event.target as HTMLElement
+        const isInInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable
+        
+        // 检查是否在 Modal 内部
+        let currentElement: HTMLElement | null = target
+        let isInModal = false
+        while (currentElement) {
+          if (currentElement.classList?.contains('ant-modal-content') || 
+              currentElement.closest('.ant-modal')) {
+            isInModal = true
+            break
+          }
+          currentElement = currentElement.parentElement
+        }
+        
+        // 如果不在输入框或 Modal 中，聚焦搜索框
+        if (!isInInput && !isInModal) {
+          event.preventDefault()
+          event.stopPropagation()
+          // 延迟一下确保 ref 已设置
+          setTimeout(() => {
+            // Ant Design Input 组件的 ref 结构
+            if (searchInputRef.current) {
+              const inputElement = searchInputRef.current.input || searchInputRef.current
+              if (inputElement && typeof inputElement.focus === 'function') {
+                inputElement.focus()
+              }
+            }
+          }, 0)
+        }
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown)
     }
   }, [])
 
@@ -234,7 +281,8 @@ const NodePalette: React.FC = () => {
     <div className="node-palette">
       <div className="node-palette-header">
         <Input
-          placeholder="搜索节点..."
+          ref={searchInputRef}
+          placeholder="搜索节点... (Ctrl+K)"
           prefix={<SearchOutlined />}
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}

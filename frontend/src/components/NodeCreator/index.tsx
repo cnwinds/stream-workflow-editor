@@ -659,7 +659,7 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
     return (
       <div style={{ marginTop: 8 }}>
         <div style={{ marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span style={{ fontSize: 12, color: '#666' }}>Schema字段 ({schemaFields.length})</span>
+          <span style={{ fontSize: 12, color: 'var(--theme-textSecondary, #595959)' }}>Schema字段 ({schemaFields.length})</span>
           {!readOnly && (
             <Button
               type="dashed"
@@ -672,7 +672,7 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
           )}
         </div>
         {schemaFields.length === 0 ? (
-          <div style={{ padding: '8px 0', color: '#999', fontSize: 12, textAlign: 'center' }}>
+          <div style={{ padding: '8px 0', color: 'var(--theme-textTertiary, #8c8c8c)', fontSize: 12, textAlign: 'center' }}>
             暂无字段（可选）
           </div>
         ) : (
@@ -835,7 +835,7 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
                 </Button>
               )}
               {inputs.length === 0 ? (
-                <div style={{ padding: '40px 0', textAlign: 'center', color: '#999' }}>
+                <div style={{ padding: '40px 0', textAlign: 'center', color: 'var(--theme-textTertiary, #8c8c8c)' }}>
                   暂无内容，点击上方按钮添加
                 </div>
               ) : (
@@ -860,7 +860,7 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
                             disabled={readOnly}
                           />
                         </div>
-                        <span style={{ fontSize: 12, color: '#666' }}>
+                        <span style={{ fontSize: 12, color: 'var(--theme-textSecondary, #595959)' }}>
                           {item.isStreaming ? '流式' : '非流式'}
                         </span>
                         {!readOnly && (
@@ -902,7 +902,7 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
                 </Button>
               )}
               {outputs.length === 0 ? (
-                <div style={{ padding: '40px 0', textAlign: 'center', color: '#999' }}>
+                <div style={{ padding: '40px 0', textAlign: 'center', color: 'var(--theme-textTertiary, #8c8c8c)' }}>
                   暂无内容，点击上方按钮添加
                 </div>
               ) : (
@@ -927,7 +927,7 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
                             disabled={readOnly}
                           />
                         </div>
-                        <span style={{ fontSize: 12, color: '#666' }}>
+                        <span style={{ fontSize: 12, color: 'var(--theme-textSecondary, #595959)' }}>
                           {item.isStreaming ? '流式' : '非流式'}
                         </span>
                         {!readOnly && (
@@ -1002,11 +1002,11 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
                   <div style={{ 
                     marginTop: 8, 
                     padding: 8, 
-                    background: '#fff7e6', 
-                    border: '1px solid #ffd591',
+                    background: 'var(--theme-backgroundSecondary, #fff7e6)', 
+                    border: '1px solid var(--theme-border, #ffd591)',
                     borderRadius: 4,
                     fontSize: 12,
-                    color: '#d46b08'
+                    color: 'var(--theme-text, #d46b08)'
                   }}>
                     ⚠️ 代码已被手动修改。修改参数后，您的代码修改将被保留。
                   </div>

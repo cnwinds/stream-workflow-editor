@@ -10,6 +10,23 @@
   border-bottom: 1px solid var(--theme-border, #e8e8e8);
 }
 
+/* 搜索框样式 */
+.node-palette-header .ant-input,
+.node-palette-header .ant-input-affix-wrapper {
+  background: var(--theme-background, #ffffff);
+  color: var(--theme-text, #262626);
+  border-color: var(--theme-border, #d9d9d9);
+}
+
+.node-palette-header .ant-input::placeholder,
+.node-palette-header .ant-input-affix-wrapper .ant-input::placeholder {
+  color: var(--theme-textTertiary, #8c8c8c) !important;
+}
+
+.node-palette-header .ant-input-affix-wrapper .anticon {
+  color: var(--theme-textTertiary, #8c8c8c);
+}
+
 .node-palette-content {
   flex: 1;
   overflow-y: auto;

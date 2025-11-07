@@ -323,7 +323,7 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
               }}
               onDragEnd={handleDragEnd}
             >
-              <HolderOutlined style={{ color: '#999', cursor: 'move' }} />
+              <HolderOutlined style={{ color: 'var(--theme-textTertiary, #8c8c8c)', cursor: 'move' }} />
             </div>
             <div 
               className="config-editor-item-content"
