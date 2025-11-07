@@ -4,7 +4,6 @@
   border-radius: 4px;
   min-width: 200px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  transition: all 0.2s;
   position: relative;
 }
 
@@ -15,7 +14,7 @@
 .custom-node.selected {
   /* 使用 outline 实现选中框，不影响节点大小 */
   outline: 3px solid var(--theme-nodeSelected, #1890ff) !important;
-  outline-offset: 2px;
+  outline-offset: 3px;
   /* 保持原有的阴影效果 */
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
