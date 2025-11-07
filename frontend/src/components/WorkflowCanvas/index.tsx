@@ -99,6 +99,33 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
     }
   }, [edges, selectedEdgeId, onEdgeSelect])
 
+  // 监听节点选中状态变化，同步到 selectedNodeId（用于显示属性面板）
+  useEffect(() => {
+    // 查找当前选中的节点
+    const selectedNodes = nodes.filter(node => node.selected)
+    
+    if (selectedNodes.length > 0) {
+      // 如果有选中的节点，使用第一个选中的节点
+      const firstSelectedNodeId = selectedNodes[0].id
+      // 只有当选中状态发生变化时才更新，避免无限循环
+      if (firstSelectedNodeId !== selectedNodeId) {
+        onNodeSelect?.(firstSelectedNodeId)
+        // 清除连接选中状态
+        if (selectedEdgeId) {
+          setSelectedEdgeId(null)
+          onEdgeSelect?.(null)
+        }
+      }
+    } else if (selectedNodeId && !nodes.find(n => n.id === selectedNodeId && n.selected)) {
+      // 如果之前选中的节点现在不再选中，清除选中状态
+      // 但只有在节点确实存在且不再选中时才清除（避免拖拽时误清除）
+      const node = nodes.find(n => n.id === selectedNodeId)
+      if (!node || !node.selected) {
+        onNodeSelect?.(null)
+      }
+    }
+  }, [nodes, selectedNodeId, selectedEdgeId, onNodeSelect, onEdgeSelect])
+
   // 处理键盘快捷键（Delete、撤销、重做）
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
