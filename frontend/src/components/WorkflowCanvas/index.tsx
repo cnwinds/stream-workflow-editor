@@ -104,7 +104,25 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
     const handleKeyDown = (event: KeyboardEvent) => {
       // 避免在输入框中触发
       const target = event.target as HTMLElement
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+      
+      // 检查是否在输入框、文本区域或可编辑内容中
+      const isInInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable
+      
+      // 检查是否在 Modal 内部（避免在编辑器中触发删除）
+      let currentElement: HTMLElement | null = target
+      let isInModal = false
+      while (currentElement) {
+        if (currentElement.classList?.contains('ant-modal-content') || 
+            currentElement.classList?.contains('config-editor-modal-content') ||
+            currentElement.closest('.ant-modal')) {
+          isInModal = true
+          break
+        }
+        currentElement = currentElement.parentElement
+      }
+      
+      // 如果在输入框或 Modal 中，不处理删除操作
+      if (isInInput || isInModal) {
         return
       }
 

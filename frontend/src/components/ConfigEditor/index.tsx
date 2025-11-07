@@ -216,10 +216,36 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
     const handleKeyDown = (e: KeyboardEvent) => {
       // 检查事件目标是否在 Modal 内部
       const target = e.target as HTMLElement
-      const modalElement = document.querySelector('.ant-modal-content')
       
-      if (!modalElement || !modalElement.contains(target)) {
+      // 检查是否在输入框、文本区域或可编辑内容中
+      const isInInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable
+      
+      // 检查是否在 Modal 内部（通过查找最近的 modal-content 父元素）
+      let currentElement: HTMLElement | null = target
+      let isInModal = false
+      while (currentElement) {
+        if (currentElement.classList?.contains('ant-modal-content') || 
+            currentElement.classList?.contains('config-editor-modal-content')) {
+          isInModal = true
+          break
+        }
+        currentElement = currentElement.parentElement
+      }
+      
+      // 如果不在 Modal 内，不处理
+      if (!isInModal) {
         return
+      }
+
+      // 如果是在输入框、文本区域或可编辑内容中，阻止事件冒泡到父组件
+      if (isInInput) {
+        // 当按下 Del 或 Backspace 键时，阻止事件冒泡
+        // 这样就不会触发父组件的删除节点操作
+        if (e.key === 'Delete' || e.key === 'Backspace') {
+          e.stopPropagation()
+          // 不阻止默认行为，让编辑器正常处理删除操作
+          return
+        }
       }
 
       // Ctrl+Enter 或 Cmd+Enter (Mac) 保存
@@ -239,13 +265,6 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
           setEditingContent('')
         }
         return
-      }
-
-      // 当按下 Del 或 Backspace 键时，阻止事件冒泡
-      // 这样就不会触发父组件的删除节点操作
-      if (e.key === 'Delete' || e.key === 'Backspace') {
-        e.stopPropagation()
-        // 不阻止默认行为，让编辑器正常处理删除操作
       }
     }
 
@@ -417,13 +436,13 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
             <TextArea
               value={editingContent}
               onChange={(e) => setEditingContent(e.target.value)}
-              rows={15}
+              rows={30}
               placeholder="输入纯文本内容"
               style={{ fontFamily: 'monospace', fontSize: 12 }}
             />
           ) : (
             <Editor
-              height="400px"
+              height="600px"
               language={editorLanguage}
               value={editingContent}
               onChange={(value) => setEditingContent(value || '')}

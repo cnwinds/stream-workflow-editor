@@ -352,54 +352,50 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ nodeId, edgeId }) => 
           </div>
 
           {/* 合并成一张表，三列布局：属性标签 | 源端口 | 目标端口 */}
-          <div style={{ border: '1px solid #d9d9d9', borderRadius: 4 }}>
+          <div style={{ border: '1px solid var(--theme-borderSecondary, #d9d9d9)', borderRadius: 4 }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
               <tbody>
-                <tr style={{ borderBottom: '1px solid #f0f0f0' }}>
-                  <td style={{ padding: '6px 8px', fontWeight: 'bold', width: 100, background: '#fafafa', borderRight: '1px solid #f0f0f0', fontSize: 12 }}>节点</td>
-                  <td style={{ padding: '6px 8px', wordBreak: 'break-word', fontSize: 12 }}>
+                <tr style={{ borderBottom: '1px solid var(--theme-border, #e8e8e8)' }}>
+                  <td style={{ padding: '6px 8px', fontWeight: 'bold', width: 100, background: 'var(--theme-backgroundSecondary, #fafafa)', borderRight: '1px solid var(--theme-border, #e8e8e8)', fontSize: 12, color: 'var(--theme-text, #262626)' }}>节点</td>
+                  <td style={{ padding: '6px 8px', wordBreak: 'break-word', fontSize: 12, color: 'var(--theme-text, #262626)' }}>
                     <div>
-                      <div style={{ color: '#1890ff', fontWeight: 500, marginBottom: 2, fontSize: 11 }}>源端口</div>
+                      <div style={{ color: 'var(--theme-primary, #1890ff)', fontWeight: 500, marginBottom: 2, fontSize: 11 }}>源端口</div>
                       {sourceNode.data?.label || sourceNode.id}
                     </div>
                   </td>
-                  <td style={{ padding: '6px 8px', wordBreak: 'break-word', fontSize: 12 }}>
+                  <td style={{ padding: '6px 8px', wordBreak: 'break-word', fontSize: 12, color: 'var(--theme-text, #262626)' }}>
                     <div>
                       <div style={{ color: '#52c41a', fontWeight: 500, marginBottom: 2, fontSize: 11 }}>目标端口</div>
                       {targetNode.data?.label || targetNode.id}
                     </div>
                   </td>
                 </tr>
-                <tr style={{ borderBottom: '1px solid #f0f0f0' }}>
-                  <td style={{ padding: '6px 8px', fontWeight: 'bold', background: '#fafafa', borderRight: '1px solid #f0f0f0', fontSize: 12 }}>节点类型</td>
-                  <td style={{ padding: '6px 8px', wordBreak: 'break-word', fontSize: 12 }}>{sourceNode.data?.type || sourceNode.type}</td>
-                  <td style={{ padding: '6px 8px', wordBreak: 'break-word', fontSize: 12 }}>{targetNode.data?.type || targetNode.type}</td>
+                <tr style={{ borderBottom: '1px solid var(--theme-border, #e8e8e8)' }}>
+                  <td style={{ padding: '6px 8px', fontWeight: 'bold', background: 'var(--theme-backgroundSecondary, #fafafa)', borderRight: '1px solid var(--theme-border, #e8e8e8)', fontSize: 12, color: 'var(--theme-text, #262626)' }}>节点类型</td>
+                  <td style={{ padding: '6px 8px', wordBreak: 'break-word', fontSize: 12, color: 'var(--theme-text, #262626)' }}>{sourceNode.data?.type || sourceNode.type}</td>
+                  <td style={{ padding: '6px 8px', wordBreak: 'break-word', fontSize: 12, color: 'var(--theme-text, #262626)' }}>{targetNode.data?.type || targetNode.type}</td>
                 </tr>
-                <tr style={{ borderBottom: '1px solid #f0f0f0' }}>
-                  <td style={{ padding: '6px 8px', fontWeight: 'bold', background: '#fafafa', borderRight: '1px solid #f0f0f0', fontSize: 12 }}>端口名称</td>
-                  <td style={{ padding: '6px 8px', wordBreak: 'break-word', fontSize: 12 }}>{sourceHandle}</td>
-                  <td style={{ padding: '6px 8px', wordBreak: 'break-word', fontSize: 12 }}>{targetHandle}</td>
+                <tr style={{ borderBottom: '1px solid var(--theme-border, #e8e8e8)' }}>
+                  <td style={{ padding: '6px 8px', fontWeight: 'bold', background: 'var(--theme-backgroundSecondary, #fafafa)', borderRight: '1px solid var(--theme-border, #e8e8e8)', fontSize: 12, color: 'var(--theme-text, #262626)' }}>端口名称</td>
+                  <td style={{ padding: '6px 8px', wordBreak: 'break-word', fontSize: 12, color: 'var(--theme-text, #262626)' }}>{sourceHandle}</td>
+                  <td style={{ padding: '6px 8px', wordBreak: 'break-word', fontSize: 12, color: 'var(--theme-text, #262626)' }}>{targetHandle}</td>
                 </tr>
-                <tr style={{ borderBottom: '1px solid #f0f0f0' }}>
-                  <td style={{ padding: '6px 8px', fontWeight: 'bold', background: '#fafafa', borderRight: '1px solid #f0f0f0', fontSize: 12 }}>端口类型</td>
-                  <td style={{ padding: '6px 8px', wordBreak: 'break-word', fontSize: 12 }}>
-                    {sourceParam?.isStreaming ? (
+                <tr style={{ borderBottom: '1px solid var(--theme-border, #e8e8e8)' }}>
+                  <td style={{ padding: '6px 8px', fontWeight: 'bold', background: 'var(--theme-backgroundSecondary, #fafafa)', borderRight: '1px solid var(--theme-border, #e8e8e8)', fontSize: 12, color: 'var(--theme-text, #262626)' }}>端口类型</td>
+                  <td style={{ padding: '6px 8px', wordBreak: 'break-word', fontSize: 12 }}>{sourceParam?.isStreaming ? (
                       <Tag color="green">流式</Tag>
                     ) : (
                       <Tag color="default">非流式</Tag>
-                    )}
-                  </td>
-                  <td style={{ padding: '6px 8px', wordBreak: 'break-word', fontSize: 12 }}>
-                    {targetParam?.isStreaming ? (
+                    )}</td>
+                  <td style={{ padding: '6px 8px', wordBreak: 'break-word', fontSize: 12 }}>{targetParam?.isStreaming ? (
                       <Tag color="green">流式</Tag>
                     ) : (
                       <Tag color="default">非流式</Tag>
-                    )}
-                  </td>
+                    )}</td>
                 </tr>
-                <tr style={{ borderBottom: '1px solid #f0f0f0' }}>
-                  <td style={{ padding: '6px 8px', fontWeight: 'bold', background: '#fafafa', borderRight: '1px solid #f0f0f0', verticalAlign: 'top', fontSize: 12 }}>Schema</td>
-                  <td style={{ padding: '6px 8px', wordBreak: 'break-word', verticalAlign: 'top', fontSize: 12 }}>
+                <tr style={{ borderBottom: '1px solid var(--theme-border, #e8e8e8)' }}>
+                  <td style={{ padding: '6px 8px', fontWeight: 'bold', background: 'var(--theme-backgroundSecondary, #fafafa)', borderRight: '1px solid var(--theme-border, #e8e8e8)', verticalAlign: 'top', fontSize: 12, color: 'var(--theme-text, #262626)' }}>Schema</td>
+                  <td style={{ padding: '6px 8px', wordBreak: 'break-word', verticalAlign: 'top', fontSize: 12, color: 'var(--theme-text, #262626)' }}>
                     {sourceParam ? (
                       <div style={{ 
                         fontSize: 11, 
@@ -407,7 +403,8 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ nodeId, edgeId }) => 
                         overflowY: 'auto',
                         overflowX: 'visible',
                         wordBreak: 'break-word',
-                        whiteSpace: 'pre-wrap'
+                        whiteSpace: 'pre-wrap',
+                        color: 'var(--theme-text, #262626)'
                       }}>
                         {JSON.stringify(sourceParam.schema || {}, null, 2)}
                       </div>
@@ -415,7 +412,7 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ nodeId, edgeId }) => 
                       <Text type="danger" style={{ fontSize: 12 }}>端口不存在</Text>
                     )}
                   </td>
-                  <td style={{ padding: '6px 8px', wordBreak: 'break-word', verticalAlign: 'top', fontSize: 12 }}>
+                  <td style={{ padding: '6px 8px', wordBreak: 'break-word', verticalAlign: 'top', fontSize: 12, color: 'var(--theme-text, #262626)' }}>
                     {targetParam ? (
                       <div style={{ 
                         fontSize: 11, 
@@ -423,7 +420,8 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ nodeId, edgeId }) => 
                         overflowY: 'auto',
                         overflowX: 'visible',
                         wordBreak: 'break-word',
-                        whiteSpace: 'pre-wrap'
+                        whiteSpace: 'pre-wrap',
+                        color: 'var(--theme-text, #262626)'
                       }}>
                         {JSON.stringify(targetParam.schema || {}, null, 2)}
                       </div>
@@ -434,11 +432,11 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ nodeId, edgeId }) => 
                 </tr>
                 {sourceParam && targetParam && Object.keys(sourceParam.schema || {}).length > 0 && (
                   <tr>
-                    <td style={{ padding: '6px 8px', fontWeight: 'bold', background: '#fafafa', borderRight: '1px solid #f0f0f0', fontSize: 12 }}>字段对比</td>
+                    <td style={{ padding: '6px 8px', fontWeight: 'bold', background: 'var(--theme-backgroundSecondary, #fafafa)', borderRight: '1px solid var(--theme-border, #e8e8e8)', fontSize: 12, color: 'var(--theme-text, #262626)' }}>字段对比</td>
                     <td style={{ padding: '6px 8px', wordBreak: 'break-word', fontSize: 12 }}>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                         {Object.entries(sourceParam.schema || {}).map(([key, value]) => (
-                          <Tag key={key} style={{ margin: 0 }}>
+                          <Tag key={key} style={{ margin: 0, background: 'var(--theme-backgroundTertiary, #f5f5f5)', color: 'var(--theme-text, #262626)', borderColor: 'var(--theme-border, #e8e8e8)' }}>
                             {key}: {String(value)}
                           </Tag>
                         ))}
