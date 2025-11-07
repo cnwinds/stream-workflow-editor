@@ -74,7 +74,7 @@
 
 /* 无效连接（参数不匹配）的样式 */
 .react-flow__edge.invalid .react-flow__edge-path {
-  stroke: #ff4d4f !important;
+  stroke: var(--theme-invalid, #ff4d4f) !important;
   stroke-width: 3;
   stroke-dasharray: 5, 5; /* 虚线表示错误 */
   animation: dash 0.5s linear infinite;
@@ -99,49 +99,37 @@
   stroke-width: 1.5 !important;
 }
 
-/* 明亮主题下调整节点颜色和边框以增加对比度 */
+/* Minimap 节点颜色使用主题变量 */
+.enhanced-minimap .react-flow__minimap-node {
+  fill: var(--theme-minimapNodeFill, #b1b1b7) !important;
+  stroke: var(--theme-minimapNodeStroke, #8c8c8c) !important;
+  stroke-width: 1.5 !important;
+}
+
+/* 明亮主题下增加边框宽度以增加对比度 */
 .theme-light .enhanced-minimap .react-flow__minimap-node {
-  fill: #b1b1b7 !important; /* 使用更深的灰色填充，在浅色背景上更显眼 */
-  stroke: #8c8c8c !important; /* 更深的边框颜色，增加对比度 */
-  stroke-width: 2 !important; /* 增加边框宽度，使节点更明显 */
+  stroke-width: 2 !important;
 }
 
-/* 暗色主题下使用更亮的节点颜色以增加对比度 */
+/* 暗色主题下增加边框宽度 */
 .theme-dark .enhanced-minimap .react-flow__minimap-node {
-  fill: #e8e8e8 !important;
-  stroke: #b1b1b7 !important;
   stroke-width: 2 !important;
 }
 
-/* 护眼主题下调整节点颜色 */
-.theme-eye-care .enhanced-minimap .react-flow__minimap-node {
-  fill: #d4d3cc !important;
-  stroke: #a8a7a0 !important;
-  stroke-width: 1.5 !important;
-}
-
-/* Minimap 中的连接线颜色 - 增加对比度 */
+/* Minimap 连接线颜色使用主题变量 */
 .enhanced-minimap .react-flow__minimap-edge {
-  stroke: var(--theme-borderSecondary, #d9d9d9) !important;
+  stroke: var(--theme-minimapEdgeStroke, #8c8c8c) !important;
   stroke-width: 1.5 !important;
 }
 
-/* 明亮主题下调整连接线颜色以增加对比度 */
+/* 明亮主题下增加连接线宽度以增加对比度 */
 .theme-light .enhanced-minimap .react-flow__minimap-edge {
-  stroke: #8c8c8c !important; /* 更深的连接线颜色，增加对比度 */
-  stroke-width: 2 !important; /* 增加连接线宽度，使其更明显 */
-}
-
-/* 暗色主题下使用更亮的连接线颜色 */
-.theme-dark .enhanced-minimap .react-flow__minimap-edge {
-  stroke: #8c8c8c !important;
   stroke-width: 2 !important;
 }
 
-/* 护眼主题下调整连接线颜色 */
-.theme-eye-care .enhanced-minimap .react-flow__minimap-edge {
-  stroke: #7a7a7a !important;
-  stroke-width: 1.5 !important;
+/* 暗色主题下增加连接线宽度 */
+.theme-dark .enhanced-minimap .react-flow__minimap-edge {
+  stroke-width: 2 !important;
 }
 
 /* Minimap 视口框颜色 */
@@ -197,40 +185,11 @@
 
 /* 暗色主题下的 Controls 按钮 */
 .theme-dark .react-flow__controls {
-  background: var(--theme-backgroundSecondary, #262626) !important;
-  border-color: var(--theme-border, #434343) !important;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
-}
-
-.theme-dark .react-flow__controls-button {
-  background: var(--theme-background, #1f1f1f) !important;
-  border-bottom-color: var(--theme-border, #434343) !important;
-  color: var(--theme-text, #ffffff) !important;
-  fill: var(--theme-text, #ffffff) !important;
-}
-
-.theme-dark .react-flow__controls-button:hover {
-  background: var(--theme-backgroundTertiary, #2f2f2f) !important;
-  color: var(--theme-primary, #177ddc) !important;
-  fill: var(--theme-primary, #177ddc) !important;
 }
 
 /* 护眼主题下的 Controls 按钮 */
 .theme-eye-care .react-flow__controls {
-  background: var(--theme-backgroundSecondary, #f0efe8) !important;
-  border-color: var(--theme-border, #d4d3cc) !important;
-}
-
-.theme-eye-care .react-flow__controls-button {
-  background: var(--theme-background, #f7f6f0) !important;
-  border-bottom-color: var(--theme-border, #d4d3cc) !important;
-  color: var(--theme-text, #3d3d3d) !important;
-  fill: var(--theme-text, #3d3d3d) !important;
-}
-
-.theme-eye-care .react-flow__controls-button:hover {
-  background: var(--theme-backgroundTertiary, #e8e7e0) !important;
-  color: var(--theme-primary, #52c41a) !important;
-  fill: var(--theme-primary, #52c41a) !important;
+  /* 使用主题变量，无需额外样式 */
 }
 

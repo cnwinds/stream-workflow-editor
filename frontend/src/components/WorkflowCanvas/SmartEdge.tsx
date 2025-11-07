@@ -5,6 +5,7 @@ import { useMemo } from 'react'
 import { BaseEdge, EdgeProps, getSmoothStepPath } from 'reactflow'
 import { calculateSmartPath, generatePathString } from '@/utils/edgeRouter'
 import { useWorkflowStore } from '@/stores/workflowStore'
+import { useThemeStore } from '@/stores/themeStore'
 
 export default function SmartEdge({
   id,
@@ -21,23 +22,27 @@ export default function SmartEdge({
   data,
 }: EdgeProps) {
   const { nodes } = useWorkflowStore()
+  const { getCurrentTheme } = useThemeStore()
   
   // 如果连接无效，使用红色
   // data.isValid 明确为 false 时表示无效，undefined 或 true 时表示有效
   const isValid = data?.isValid !== false
   const isHandleHovered = data?.isHandleHovered === true
   
+  // 获取当前主题颜色
+  const theme = getCurrentTheme()
+  
   // 构建边的样式
   // WorkflowCanvas 已经根据验证结果设置了 stroke 颜色，所以优先使用传入的 style
   // 如果 style 中没有 stroke，则根据有效性设置
-  // 如果 handle 悬停，使用高亮颜色
+  // 如果 handle 悬停，使用主题的高亮颜色（使用 streaming 颜色作为高亮色）
   const edgeStyle = {
     ...style,
     stroke: style.stroke !== undefined 
       ? style.stroke 
       : (isValid 
-        ? (isHandleHovered ? '#52c41a' : undefined) // handle 悬停时使用绿色高亮
-        : '#ff4d4f'), // 红色表示错误
+        ? (isHandleHovered ? theme.colors.streaming : undefined) // handle 悬停时使用主题高亮颜色
+        : theme.colors.invalid), // 使用主题错误颜色
     strokeWidth: style.strokeWidth !== undefined ? style.strokeWidth : (isValid ? 2 : 3),
   }
   

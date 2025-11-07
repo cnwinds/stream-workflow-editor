@@ -21,12 +21,10 @@
 
 /* 根据主题调整选中状态的阴影 */
 .theme-dark .custom-node.selected {
-  outline-color: var(--theme-nodeSelected, #177ddc) !important;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
 .theme-eye-care .custom-node.selected {
-  outline-color: var(--theme-nodeSelected, #52c41a) !important;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
@@ -130,16 +128,16 @@
 
 .custom-node-param-streaming {
   font-size: 9px;
-  color: #52c41a; /* 流式标签保持绿色以突出显示 */
-  background: var(--theme-backgroundSecondary, #f6ffed);
+  color: var(--theme-streaming, #52c41a);
+  background: var(--theme-streamingBackground, #f6ffed);
   padding: 1px 4px;
   border-radius: 2px;
-  border: 1px solid #b7eb8f; /* 流式标签边框保持绿色 */
+  border: 1px solid var(--theme-streamingBorder, #b7eb8f);
   flex-shrink: 0;
 }
 
 .custom-node-param-required {
-  color: #ff4d4f; /* 必填标记保持红色以突出显示 */
+  color: var(--theme-error, #ff4d4f);
   font-weight: bold;
   font-size: 12px;
   flex-shrink: 0;
@@ -165,7 +163,7 @@
 }
 
 .react-flow__handle.streaming-handle {
-  background-color: #52c41a; /* 流式连接点保持绿色以突出显示 */
+  background-color: var(--theme-streaming, #52c41a);
   border-color: var(--theme-background, #fff);
 }
 

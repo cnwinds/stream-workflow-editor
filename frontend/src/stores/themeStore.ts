@@ -28,6 +28,26 @@ export interface Theme {
     // 画布颜色
     canvasBackground: string
     canvasGrid: string
+    // 错误相关颜色
+    error: string
+    errorBackground: string
+    errorBorder: string
+    // 成功相关颜色
+    success: string
+    successBackground: string
+    successBorder: string
+    // 流式标签颜色
+    streaming: string
+    streamingBackground: string
+    streamingBorder: string
+    // 无效连接颜色
+    invalid: string
+    // Minimap 颜色
+    minimapNodeFill: string
+    minimapNodeStroke: string
+    minimapEdgeStroke: string
+    // 阴影颜色（rgba 值）
+    shadow: string
   }
 }
 
@@ -51,6 +71,20 @@ const themes: Record<ThemeMode, Theme> = {
       nodeSelected: '#1890ff',
       canvasBackground: '#ffffff',
       canvasGrid: '#f0f0f0',
+      error: '#ff4d4f',
+      errorBackground: '#fff2f0',
+      errorBorder: '#ffccc7',
+      success: '#52c41a',
+      successBackground: '#f6ffed',
+      successBorder: '#b7eb8f',
+      streaming: '#52c41a',
+      streamingBackground: '#f6ffed',
+      streamingBorder: '#b7eb8f',
+      invalid: '#ff4d4f',
+      minimapNodeFill: '#b1b1b7',
+      minimapNodeStroke: '#8c8c8c',
+      minimapEdgeStroke: '#8c8c8c',
+      shadow: 'rgba(0, 0, 0, 0.045)',
     },
   },
   'eye-care': {
@@ -72,6 +106,20 @@ const themes: Record<ThemeMode, Theme> = {
       nodeSelected: '#52c41a',
       canvasBackground: '#f7f6f0',
       canvasGrid: '#e8e7e0',
+      error: '#ff4d4f',
+      errorBackground: '#fff2f0',
+      errorBorder: '#ffccc7',
+      success: '#52c41a',
+      successBackground: '#f6ffed',
+      successBorder: '#b7eb8f',
+      streaming: '#52c41a',
+      streamingBackground: '#f6ffed',
+      streamingBorder: '#b7eb8f',
+      invalid: '#ff4d4f',
+      minimapNodeFill: '#d4d3cc',
+      minimapNodeStroke: '#a8a7a0',
+      minimapEdgeStroke: '#7a7a7a',
+      shadow: 'rgba(0, 0, 0, 0.08)',
     },
   },
   dark: {
@@ -93,6 +141,20 @@ const themes: Record<ThemeMode, Theme> = {
       nodeSelected: '#177ddc',
       canvasBackground: '#1a1a1a',
       canvasGrid: '#2a2a2a',
+      error: '#ff4d4f',
+      errorBackground: '#2a1f1f',
+      errorBorder: '#4a2f2f',
+      success: '#52c41a',
+      successBackground: '#1f2a1f',
+      successBorder: '#2f4a2f',
+      streaming: '#52c41a',
+      streamingBackground: '#1f2a1f',
+      streamingBorder: '#2f4a2f',
+      invalid: '#ff4d4f',
+      minimapNodeFill: '#e8e8e8',
+      minimapNodeStroke: '#b1b1b7',
+      minimapEdgeStroke: '#8c8c8c',
+      shadow: 'rgba(0, 0, 0, 0.3)',
     },
   },
 }
