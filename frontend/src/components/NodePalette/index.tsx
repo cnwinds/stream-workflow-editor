@@ -4,10 +4,12 @@ import { SearchOutlined } from '@ant-design/icons'
 import { nodeApi } from '@/services/api'
 import { NodeType, CategoryTreeNode } from '@/types/node'
 import { useNodeInfoStore } from '@/stores/nodeInfoStore'
+import { useThemeStore } from '@/stores/themeStore'
 import './NodePalette.css'
 
 const NodePalette: React.FC = () => {
   const { setNodeTypes, setCustomNodes } = useNodeInfoStore()
+  const { getCurrentTheme } = useThemeStore()
   const [nodeTypes, setNodeTypesLocal] = useState<NodeType[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [loading, setLoading] = useState(true)
@@ -96,48 +98,50 @@ const NodePalette: React.FC = () => {
       } catch (error) {
         console.error('从后端加载节点类型失败，使用默认类型:', error)
         // 如果后端连接失败，使用默认节点类型
+        const theme = getCurrentTheme()
+        const defaultColor = theme.colors.primary
         const defaultTypes: NodeType[] = [
           {
             id: 'start',
             name: '起始节点',
             category: '基础',
             executionMode: 'sequential',
-            color: '#1890ff',
+            color: defaultColor,
           },
           {
             id: 'http',
             name: 'HTTP 请求',
             category: '网络',
             executionMode: 'sequential',
-            color: '#1890ff',
+            color: defaultColor,
           },
           {
             id: 'transform',
             name: '数据转换',
             category: '数据处理',
             executionMode: 'sequential',
-            color: '#1890ff',
+            color: defaultColor,
           },
           {
             id: 'condition',
             name: '条件判断',
             category: '流程控制',
             executionMode: 'sequential',
-            color: '#1890ff',
+            color: defaultColor,
           },
           {
             id: 'merge',
             name: '合并节点',
             category: '流程控制',
             executionMode: 'sequential',
-            color: '#1890ff',
+            color: defaultColor,
           },
           {
             id: 'output',
             name: '输出节点',
             category: '基础',
             executionMode: 'sequential',
-            color: '#1890ff',
+            color: defaultColor,
           },
         ]
         setNodeTypesLocal(defaultTypes)

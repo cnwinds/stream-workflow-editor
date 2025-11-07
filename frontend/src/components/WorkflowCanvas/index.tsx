@@ -18,6 +18,9 @@ import CustomNode from './CustomNode'
 import SmartEdge from './SmartEdge'
 import EnhancedMiniMap from './EnhancedMiniMap'
 import ConnectionContextMenu from './ConnectionContextMenu'
+import NodeCreatorModal from '@/components/NodeCreator'
+import { useNodeInfoStore } from '@/stores/nodeInfoStore'
+import { useThemeStore } from '@/stores/themeStore'
 import './WorkflowCanvas.css'
 
 const nodeTypes = {
@@ -56,6 +59,10 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
   const [selectedEdgeId, setSelectedEdgeId] = React.useState<string | null>(null)
   const [hoveredEdgeId, setHoveredEdgeId] = React.useState<string | null>(null)
   const [hoveredHandleEdges, setHoveredHandleEdges] = React.useState<Set<string>>(new Set())
+  const [nodeCreatorVisible, setNodeCreatorVisible] = React.useState(false)
+  const [viewingNodeType, setViewingNodeType] = React.useState<string | null>(null)
+  const { isCustomNode: isCustomNodeType } = useNodeInfoStore()
+  const { getCurrentTheme } = useThemeStore()
   
   // 连接上下文菜单相关状态
   const [connectionMenu, setConnectionMenu] = useState<{
@@ -219,6 +226,18 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
       onEdgeSelect?.(null)
     },
     [onNodeSelect, onEdgeSelect]
+  )
+
+  const handleNodeDoubleClick = useCallback(
+    (_event: React.MouseEvent, node: Node) => {
+      // 双击节点时打开节点详情界面
+      const nodeType = node.data?.type || node.type
+      if (nodeType) {
+        setViewingNodeType(nodeType)
+        setNodeCreatorVisible(true)
+      }
+    },
+    []
   )
 
   const handlePaneClick = useCallback(() => {
@@ -688,6 +707,9 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
     onHandleMouseLeave: handleHandleMouseLeave,
   }), [handleHandleMouseEnter, handleHandleMouseLeave])
 
+  // 获取当前主题
+  const theme = getCurrentTheme()
+
   return (
     <div style={{ width: '100%', height: '100%' }}>
       <ReactFlowProvider>
@@ -732,6 +754,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
           }}
           onConnectStart={handleConnectStart}
           onNodeClick={handleNodeClick}
+          onNodeDoubleClick={handleNodeDoubleClick}
           onEdgeClick={handleEdgeClick}
           onEdgeMouseEnter={handleEdgeMouseEnter}
           onEdgeMouseLeave={handleEdgeMouseLeave}
@@ -747,7 +770,10 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
           attributionPosition="bottom-left"
           defaultEdgeOptions={edgeOptions}
         >
-          <Background />
+          <Background 
+            color={theme.colors.canvasGrid} 
+            gap={20}
+          />
           <Controls />
           <EnhancedMiniMap reactFlowInstance={reactFlowInstance.current} />
         </ReactFlow>
@@ -765,6 +791,20 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
             menuType={connectionMenu.handleType === 'source' ? 'input' : 'output'}
           />
         )}
+        <NodeCreatorModal
+          visible={nodeCreatorVisible}
+          onCancel={() => {
+            setNodeCreatorVisible(false)
+            setViewingNodeType(null)
+          }}
+          onSuccess={() => {
+            setNodeCreatorVisible(false)
+            setViewingNodeType(null)
+          }}
+          editingNodeId={viewingNodeType && isCustomNodeType(viewingNodeType) ? viewingNodeType : undefined}
+          readOnly={viewingNodeType ? !isCustomNodeType(viewingNodeType) : false}
+          viewingNodeId={viewingNodeType && !isCustomNodeType(viewingNodeType) ? viewingNodeType : undefined}
+        />
         </HandleHoverContext.Provider>
       </ReactFlowProvider>
     </div>

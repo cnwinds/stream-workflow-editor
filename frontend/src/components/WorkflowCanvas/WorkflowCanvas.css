@@ -13,14 +13,14 @@
 }
 
 .react-flow__edge.selected {
-  stroke: #1890ff;
+  stroke: var(--theme-nodeSelected, #1890ff);
 }
 
 .react-flow__handle {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background-color: #1890ff;
+  background-color: var(--theme-primary, #1890ff);
 }
 
 .react-flow__handle-left {
@@ -34,19 +34,19 @@
 /* 连接线标签样式 */
 .react-flow__edge-text {
   font-size: 11px;
-  fill: #595959;
+  fill: var(--theme-textSecondary, #595959);
   font-weight: 500;
 }
 
 .react-flow__edge-textbg {
-  fill: #fff;
-  stroke: #fff;
+  fill: var(--theme-background, #fff);
+  stroke: var(--theme-background, #fff);
   stroke-width: 4px;
 }
 
 /* 连接线样式 */
 .react-flow__edge-path {
-  stroke: #b1b1b7;
+  stroke: var(--theme-borderSecondary, #b1b1b7);
   stroke-width: 2;
 }
 
@@ -56,7 +56,7 @@
 }
 
 .react-flow__edge.selected .react-flow__edge-path {
-  stroke: #1890ff !important;
+  stroke: var(--theme-nodeSelected, #1890ff) !important;
   stroke-width: 3 !important;
   z-index: 1000 !important;
 }
@@ -67,7 +67,7 @@
 }
 
 .react-flow__edge:hover .react-flow__edge-path {
-  stroke: #52c41a !important;
+  stroke: var(--theme-primaryHover, #40a9ff) !important;
   stroke-width: 2.5 !important;
   z-index: 500 !important;
 }
