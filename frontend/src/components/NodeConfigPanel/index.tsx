@@ -114,7 +114,7 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ nodeId, edgeId }) => 
     // 使用 ref 标记，避免重复调用
     let cancelled = false
 
-    const checkIsCustomNode = async () => {
+    const checkNodeInfo = async () => {
       if (!nodeId || !nodeType) {
         setIsCustomNode(false)
         setInstanceCount(0)
@@ -128,7 +128,7 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ nodeId, edgeId }) => 
         setNodeDescription(cachedDescription)
       }
 
-      // 从缓存中判断是否为自定义节点
+      // 从缓存中判断是否为自定义节点（使用从 store 导入的函数）
       const cachedIsCustom = checkIsCustomNode(nodeType)
       setIsCustomNode(cachedIsCustom)
 
@@ -195,7 +195,7 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ nodeId, edgeId }) => 
       }
     }
 
-    checkIsCustomNode()
+    checkNodeInfo()
 
     return () => {
       cancelled = true
