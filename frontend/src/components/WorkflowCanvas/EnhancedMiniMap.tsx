@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { MiniMap, MiniMapProps, ReactFlowInstance } from 'reactflow'
+import { useThemeStore } from '@/stores/themeStore'
 
 interface EnhancedMiniMapProps extends MiniMapProps {
   reactFlowInstance?: ReactFlowInstance | null
@@ -16,6 +17,8 @@ const EnhancedMiniMap: React.FC<EnhancedMiniMapProps> = ({
   reactFlowInstance,
   ...props
 }) => {
+  const { getCurrentTheme, theme: themeMode } = useThemeStore()
+  const theme = getCurrentTheme()
   const minimapRef = useRef<HTMLDivElement>(null)
   const [fitViewMode, setFitViewMode] = useState(false)
   const savedViewportRef = useRef<{ x: number; y: number; zoom: number } | null>(null)
@@ -110,9 +113,38 @@ const EnhancedMiniMap: React.FC<EnhancedMiniMapProps> = ({
     }
   }, [reactFlowInstance, fitViewMode])
 
+  // 根据主题设置 minimap 的颜色
+  // 为了增加对比度，在不同主题下使用合适的节点颜色
+  const getNodeColor = () => {
+    if (themeMode === 'dark') {
+      // 暗色主题：使用更亮的颜色以增加对比度
+      return '#e8e8e8' // 浅灰色，在深色背景上更清晰
+    } else if (themeMode === 'eye-care') {
+      // 护眼主题：使用稍微亮一点的颜色
+      return '#d4d3cc'
+    } else {
+      // 明亮主题：使用更深的颜色以增加对比度（浅色背景上）
+      return '#d9d9d9' // 使用灰色填充，在浅色背景上更清晰
+    }
+  }
+  
+  const nodeColor = getNodeColor()
+  const maskColor = theme.colors.primary || '#1890ff'
+  const maskStrokeColor = theme.colors.border || '#e8e8e8'
+
   return (
-    <div ref={minimapRef}>
-      <MiniMap pannable zoomable {...props} />
+    <div ref={minimapRef} className="enhanced-minimap">
+      <MiniMap 
+        pannable 
+        zoomable 
+        nodeColor={nodeColor}
+        maskColor={maskColor}
+        maskStrokeColor={maskStrokeColor}
+        style={{
+          backgroundColor: theme.colors.backgroundSecondary || '#fafafa',
+        }}
+        {...props} 
+      />
     </div>
   )
 }
