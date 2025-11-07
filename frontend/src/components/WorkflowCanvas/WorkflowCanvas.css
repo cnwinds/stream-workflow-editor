@@ -8,7 +8,8 @@
 }
 
 .react-flow__node.selected {
-  outline: 2px solid #1890ff;
+  /* 移除 outline，使用节点内部的选中样式 */
+  outline: none !important;
 }
 
 .react-flow__edge.selected {
@@ -100,9 +101,9 @@
 
 /* 明亮主题下调整节点颜色和边框以增加对比度 */
 .theme-light .enhanced-minimap .react-flow__minimap-node {
-  fill: #d9d9d9 !important; /* 使用灰色填充，在浅色背景上更清晰 */
-  stroke: #a3a3a3 !important; /* 更深的边框颜色 */
-  stroke-width: 1.5 !important;
+  fill: #b1b1b7 !important; /* 使用更深的灰色填充，在浅色背景上更显眼 */
+  stroke: #8c8c8c !important; /* 更深的边框颜色，增加对比度 */
+  stroke-width: 2 !important; /* 增加边框宽度，使节点更明显 */
 }
 
 /* 暗色主题下使用更亮的节点颜色以增加对比度 */
@@ -127,8 +128,8 @@
 
 /* 明亮主题下调整连接线颜色以增加对比度 */
 .theme-light .enhanced-minimap .react-flow__minimap-edge {
-  stroke: #a3a3a3 !important; /* 更深的连接线颜色 */
-  stroke-width: 1.5 !important;
+  stroke: #8c8c8c !important; /* 更深的连接线颜色，增加对比度 */
+  stroke-width: 2 !important; /* 增加连接线宽度，使其更明显 */
 }
 
 /* 暗色主题下使用更亮的连接线颜色 */
@@ -148,7 +149,22 @@
   fill: var(--theme-primary, #1890ff) !important;
   fill-opacity: 0.1 !important;
   stroke: var(--theme-primary, #1890ff) !important;
-  stroke-width: 2 !important;
+  stroke-width: 3 !important; /* 加粗视口框边框，使其更明显 */
+}
+
+/* 明亮主题下进一步加粗视口框 */
+.theme-light .enhanced-minimap .react-flow__minimap-mask {
+  stroke-width: 3.5 !important;
+}
+
+/* 暗色主题下加粗视口框 */
+.theme-dark .enhanced-minimap .react-flow__minimap-mask {
+  stroke-width: 3.5 !important;
+}
+
+/* 护眼主题下加粗视口框 */
+.theme-eye-care .enhanced-minimap .react-flow__minimap-mask {
+  stroke-width: 3.5 !important;
 }
 
 /* Controls 按钮主题样式 */

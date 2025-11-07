@@ -13,18 +13,22 @@
 }
 
 .custom-node.selected {
-  border-color: var(--theme-nodeSelected, #1890ff);
-  /* 选中状态的阴影使用主题主色，透明度为 0.2 */
-  box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+  /* 使用 outline 实现选中框，不影响节点大小 */
+  outline: 3px solid var(--theme-nodeSelected, #1890ff) !important;
+  outline-offset: 2px;
+  /* 保持原有的阴影效果 */
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
-/* 根据主题调整选中状态的阴影颜色 */
+/* 根据主题调整选中状态的阴影 */
 .theme-dark .custom-node.selected {
-  box-shadow: 0 0 0 2px rgba(23, 125, 220, 0.3);
+  outline-color: var(--theme-nodeSelected, #177ddc) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
 .theme-eye-care .custom-node.selected {
-  box-shadow: 0 0 0 2px rgba(82, 196, 26, 0.3);
+  outline-color: var(--theme-nodeSelected, #52c41a) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
 .custom-node-header {

@@ -124,7 +124,7 @@ const EnhancedMiniMap: React.FC<EnhancedMiniMapProps> = ({
       return '#d4d3cc'
     } else {
       // 明亮主题：使用更深的颜色以增加对比度（浅色背景上）
-      return '#d9d9d9' // 使用灰色填充，在浅色背景上更清晰
+      return '#b1b1b7' // 使用更深的灰色填充，在浅色背景上更显眼
     }
   }
   
