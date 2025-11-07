@@ -569,6 +569,75 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
     reactFlowInstance.current = instance
   }, [])
 
+  // 监听在画布中心创建节点的事件
+  useEffect(() => {
+    const handleCreateNodeAtCenter = async (event: Event) => {
+      const customEvent = event as CustomEvent<{ nodeType: NodeType }>
+      const { nodeType } = customEvent.detail
+
+      if (!reactFlowInstance.current) return
+
+      // 计算画布中心在流坐标中的位置
+      // 视口中心通常是 (0, 0)，因为 React Flow 使用相对坐标
+      // 我们需要获取画布容器的中心点
+      const reactFlowWrapper = document.querySelector('.react-flow')
+      if (!reactFlowWrapper) return
+
+      const rect = reactFlowWrapper.getBoundingClientRect()
+      const centerX = rect.left + rect.width / 2
+      const centerY = rect.top + rect.height / 2
+
+      // 将屏幕坐标转换为流坐标
+      const position = reactFlowInstance.current.screenToFlowPosition({
+        x: centerX,
+        y: centerY,
+      })
+
+      // 对齐到10的倍数，实现吸附效果
+      const alignedPosition = {
+        x: Math.round(position.x / 10) * 10,
+        y: Math.round(position.y / 10) * 10,
+      }
+
+      // 加载节点的 schema
+      let inputParams: Record<string, any> = {}
+      let outputParams: Record<string, any> = {}
+      
+      try {
+        const { nodeApi } = await import('@/services/api')
+        const schema = await nodeApi.getNodeSchema(nodeType.id)
+        if (schema.INPUT_PARAMS) {
+          inputParams = schema.INPUT_PARAMS
+        }
+        if (schema.OUTPUT_PARAMS) {
+          outputParams = schema.OUTPUT_PARAMS
+        }
+      } catch (error) {
+        console.warn(`无法加载节点 ${nodeType.id} 的 schema:`, error)
+      }
+
+      const newNode: Node = {
+        id: `${nodeType.id}-${Date.now()}`,
+        type: 'custom',
+        position: alignedPosition,
+        data: {
+          label: nodeType.name,
+          nodeType,
+          type: nodeType.id,
+          inputParams,
+          outputParams,
+        },
+      }
+
+      addNode(newNode)
+    }
+
+    window.addEventListener('createNodeAtCenter', handleCreateNodeAtCenter as EventListener)
+    return () => {
+      window.removeEventListener('createNodeAtCenter', handleCreateNodeAtCenter as EventListener)
+    }
+  }, [addNode])
+
   const onDragOver = useCallback((event: React.DragEvent) => {
     event.preventDefault()
     event.dataTransfer.dropEffect = 'move'

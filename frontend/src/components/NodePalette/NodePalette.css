@@ -54,6 +54,31 @@
 .node-item {
   cursor: grab;
   user-select: none;
+  transition: all 0.2s;
+  border-color: var(--theme-borderSecondary, #d9d9d9) !important;
+}
+
+/* 暗色主题下使用更淡的边框 */
+.theme-dark .node-item {
+  border-color: var(--theme-border, #434343) !important;
+}
+
+/* 护眼主题下使用更淡的边框 */
+.theme-eye-care .node-item {
+  border-color: var(--theme-borderSecondary, #c4c3bc) !important;
+}
+
+.node-item-selected {
+  background-color: var(--theme-primary, #1890ff) !important;
+  border-color: var(--theme-primary, #1890ff) !important;
+}
+
+.node-item-selected .node-item-name {
+  color: #ffffff !important;
+}
+
+.node-item-selected .node-item-desc {
+  color: rgba(255, 255, 255, 0.8) !important;
 }
 
 .node-item .ant-card-body {

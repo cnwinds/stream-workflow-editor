@@ -13,7 +13,10 @@ const NodePalette: React.FC = () => {
   const [nodeTypes, setNodeTypesLocal] = useState<NodeType[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [loading, setLoading] = useState(true)
+  const [selectedIndex, setSelectedIndex] = useState<number>(-1)
+  const [activeKeys, setActiveKeys] = useState<string[]>([])
   const searchInputRef = useRef<any>(null)
+  const nodeItemsRef = useRef<HTMLDivElement[]>([])
 
   useEffect(() => {
     loadNodeTypes()
@@ -63,6 +66,13 @@ const NodePalette: React.FC = () => {
               const inputElement = searchInputRef.current.input || searchInputRef.current
               if (inputElement && typeof inputElement.focus === 'function') {
                 inputElement.focus()
+                // 全选搜索框内的文字
+                if (inputElement.select && typeof inputElement.select === 'function') {
+                  inputElement.select()
+                } else if (inputElement.setSelectionRange && typeof inputElement.setSelectionRange === 'function') {
+                  const length = inputElement.value ? inputElement.value.length : 0
+                  inputElement.setSelectionRange(0, length)
+                }
               }
             }
           }, 0)
@@ -201,6 +211,208 @@ const NodePalette: React.FC = () => {
     return tree
   }, [filteredNodes])
 
+  // 获取所有可见的节点项（扁平化列表）
+  const flatNodeList = useMemo(() => {
+    const flattenNodes = (tree: Record<string, CategoryTreeNode>): NodeType[] => {
+      const result: NodeType[] = []
+      Object.values(tree).forEach((node) => {
+        if (node.nodes && node.nodes.length > 0) {
+          result.push(...node.nodes)
+        }
+        if (node.children && Object.keys(node.children).length > 0) {
+          result.push(...flattenNodes(node.children))
+        }
+      })
+      return result
+    }
+    return flattenNodes(categoryTree)
+  }, [categoryTree])
+
+  // 在画布中心创建节点
+  const createNodeAtCenter = async (nodeType: NodeType) => {
+    // 发送全局事件，让 WorkflowCanvas 处理节点创建
+    const event = new CustomEvent('createNodeAtCenter', {
+      detail: { nodeType },
+    })
+    window.dispatchEvent(event)
+  }
+
+  // 键盘导航处理
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement
+      const isInInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable
+      
+      // 如果焦点在搜索框，处理搜索框内的键盘事件
+      // 检查是否是搜索框的 input 元素
+      let isSearchInput = false
+      if (isInInput && searchInputRef.current) {
+        const inputElement = searchInputRef.current.input || searchInputRef.current
+        // 检查目标元素是否是搜索框或其子元素
+        isSearchInput = target === inputElement || 
+                       (inputElement && inputElement.contains && inputElement.contains(target)) ||
+                       target.closest('.node-palette-header') !== null
+      }
+      
+      // 如果焦点在搜索框，处理搜索框内的键盘事件
+      if (isInInput && isSearchInput) {
+        if (event.key === 'Enter') {
+          event.preventDefault()
+          // 如果只有一个节点，直接创建
+          if (flatNodeList.length === 1) {
+            createNodeAtCenter(flatNodeList[0])
+            setSearchTerm('') // 清空搜索框
+          } else if (flatNodeList.length > 1) {
+            // 如果有多个节点，选中第一个
+            setSelectedIndex(0)
+            // 滚动到第一个节点
+            if (nodeItemsRef.current[0]) {
+              nodeItemsRef.current[0].scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+            }
+          }
+          // 让搜索框失去焦点，这样后续的上下键可以在节点列表中导航
+          if (searchInputRef.current) {
+            const inputElement = searchInputRef.current.input || searchInputRef.current
+            if (inputElement && typeof inputElement.blur === 'function') {
+              inputElement.blur()
+            }
+          }
+          return
+        } else if (event.key === 'ArrowDown') {
+          event.preventDefault()
+          if (flatNodeList.length > 0) {
+            // 在搜索框内：方向下键跳转到第一个节点
+            setSelectedIndex(0)
+            if (nodeItemsRef.current[0]) {
+              nodeItemsRef.current[0].scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+            }
+            // 让搜索框失去焦点，这样后续的上下键可以在节点列表中导航
+            if (searchInputRef.current) {
+              const inputElement = searchInputRef.current.input || searchInputRef.current
+              if (inputElement && typeof inputElement.blur === 'function') {
+                inputElement.blur()
+              }
+            }
+          }
+          return
+        } else if (event.key === 'ArrowUp') {
+          event.preventDefault()
+          if (flatNodeList.length > 0) {
+            // 在搜索框内：方向上键跳转到最后一个节点
+            const lastIndex = flatNodeList.length - 1
+            setSelectedIndex(lastIndex)
+            if (nodeItemsRef.current[lastIndex]) {
+              nodeItemsRef.current[lastIndex].scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+            }
+            // 让搜索框失去焦点，这样后续的上下键可以在节点列表中导航
+            if (searchInputRef.current) {
+              const inputElement = searchInputRef.current.input || searchInputRef.current
+              if (inputElement && typeof inputElement.blur === 'function') {
+                inputElement.blur()
+              }
+            }
+          }
+          return
+        }
+        // 其他按键不处理，让搜索框正常使用
+        return
+      }
+      
+      // 如果焦点在其他输入框，不处理导航
+      if (isInInput) {
+        return
+      }
+
+      // 检查是否在 Modal 内部
+      let currentElement: HTMLElement | null = target
+      let isInModal = false
+      while (currentElement) {
+        if (currentElement.classList?.contains('ant-modal-content') || 
+            currentElement.closest('.ant-modal')) {
+          isInModal = true
+          break
+        }
+        currentElement = currentElement.parentElement
+      }
+      if (isInModal) return
+
+      // 不在搜索框内时：方向键在节点列表中循环移动
+      if (event.key === 'ArrowDown') {
+        event.preventDefault()
+        setSelectedIndex((prev) => {
+          // 如果当前没有选中，从第一个开始
+          if (prev < 0) {
+            const firstIndex = 0
+            if (nodeItemsRef.current[firstIndex]) {
+              nodeItemsRef.current[firstIndex].scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+            }
+            return firstIndex
+          }
+          // 循环移动：到达最后一个后回到第一个
+          const next = prev < flatNodeList.length - 1 ? prev + 1 : 0
+          if (nodeItemsRef.current[next]) {
+            nodeItemsRef.current[next].scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+          }
+          return next
+        })
+      } else if (event.key === 'ArrowUp') {
+        event.preventDefault()
+        setSelectedIndex((prev) => {
+          // 如果当前没有选中，从最后一个开始
+          if (prev < 0) {
+            const lastIndex = flatNodeList.length - 1
+            if (nodeItemsRef.current[lastIndex]) {
+              nodeItemsRef.current[lastIndex].scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+            }
+            return lastIndex
+          }
+          // 循环移动：到达第一个后回到最后一个
+          const next = prev > 0 ? prev - 1 : flatNodeList.length - 1
+          if (nodeItemsRef.current[next]) {
+            nodeItemsRef.current[next].scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+          }
+          return next
+        })
+      } else if (event.key === 'Enter' && selectedIndex >= 0 && selectedIndex < flatNodeList.length) {
+        event.preventDefault()
+        const selectedNode = flatNodeList[selectedIndex]
+        createNodeAtCenter(selectedNode)
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [selectedIndex, flatNodeList, createNodeAtCenter])
+
+  // 当搜索词或节点列表变化时，重置选中索引
+  useEffect(() => {
+    setSelectedIndex(-1)
+    nodeItemsRef.current = []
+  }, [searchTerm, categoryTree])
+
+  // 当有搜索词时，强制展开所有分类；没有搜索词时，使用默认展开状态
+  useEffect(() => {
+    if (searchTerm) {
+      // 有搜索词时，展开所有分类
+      const allKeys: string[] = []
+      const collectKeys = (tree: Record<string, CategoryTreeNode>) => {
+        Object.values(tree).forEach((node) => {
+          allKeys.push(node.key)
+          if (node.children && Object.keys(node.children).length > 0) {
+            collectKeys(node.children)
+          }
+        })
+      }
+      collectKeys(categoryTree)
+      setActiveKeys(allKeys)
+    } else {
+      // 没有搜索词时，展开所有顶级分类
+      setActiveKeys(Object.keys(categoryTree))
+    }
+  }, [searchTerm, categoryTree])
+
   // 递归构建树节点 items
   const buildCategoryTreeItems = (tree: Record<string, CategoryTreeNode>, level = 0): any[] => {
     const entries = Object.values(tree)
@@ -231,29 +443,39 @@ const NodePalette: React.FC = () => {
         if (hasNodes) {
           childrenContent.push(
             <div key="nodes" className="node-category-items">
-              {node.nodes!.map((nodeType) => (
-                <Card
-                  key={nodeType.id}
-                  className="node-item"
-                  draggable
-                  onDragStart={(e) => handleNodeDragStart(e, nodeType)}
-                  hoverable
-                  size="small"
-                >
-                  <div className="node-item-content">
-                    <div
-                      className="node-item-icon"
-                      style={{ backgroundColor: nodeType.color }}
-                    />
-                    <div className="node-item-info">
-                      <div className="node-item-name">{nodeType.name}</div>
-                      {nodeType.description && (
-                        <div className="node-item-desc">{nodeType.description}</div>
-                      )}
+              {node.nodes!.map((nodeType) => {
+                const globalIndex = flatNodeList.findIndex(n => n.id === nodeType.id)
+                const isSelected = globalIndex === selectedIndex
+                return (
+                  <Card
+                    key={nodeType.id}
+                    ref={(el) => {
+                      if (el && globalIndex >= 0) {
+                        nodeItemsRef.current[globalIndex] = el as any
+                      }
+                    }}
+                    className={`node-item ${isSelected ? 'node-item-selected' : ''}`}
+                    draggable
+                    onDragStart={(e) => handleNodeDragStart(e, nodeType)}
+                    onClick={() => createNodeAtCenter(nodeType)}
+                    hoverable
+                    size="small"
+                  >
+                    <div className="node-item-content">
+                      <div
+                        className="node-item-icon"
+                        style={{ backgroundColor: nodeType.color }}
+                      />
+                      <div className="node-item-info">
+                        <div className="node-item-name">{nodeType.name}</div>
+                        {nodeType.description && (
+                          <div className="node-item-desc">{nodeType.description}</div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                </Card>
-              ))}
+                  </Card>
+                )
+              })}
             </div>
           )
         }
@@ -300,7 +522,15 @@ const NodePalette: React.FC = () => {
           <Empty description="未找到节点" />
         ) : (
           <Collapse 
-            defaultActiveKey={Object.keys(categoryTree)}
+            activeKey={activeKeys}
+            onChange={(keys) => {
+              // 如果有搜索词，不允许折叠（强制展开所有）
+              if (searchTerm) {
+                return
+              }
+              // 没有搜索词时，允许用户手动折叠/展开
+              setActiveKeys(keys as string[])
+            }}
             items={buildCategoryTreeItems(categoryTree)}
           />
         )}
