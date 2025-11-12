@@ -56,7 +56,8 @@ frontend/.vite/
 *.local
 
 # Project specific
-src/stream_workflow_editor/static/
+# 注意: static/ 目录需要提交到仓库（构建后的前端静态文件）
+# src/stream_workflow_editor/static/
 src/stream_workflow_editor.egg-info/
 
 # Temporary files

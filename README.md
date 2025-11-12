@@ -17,8 +17,8 @@
 ### 方式1: 通过 pip 安装（推荐）
 
 ```bash
-# 安装包
-pip install stream-workflow-editor
+# 安装包（从 GitHub 仓库安装）
+pip install git+https://github.com/cnwinds/stream-workflow-editor.git
 
 # 在任何目录启动服务器
 cd /path/to/your/project
@@ -143,18 +143,38 @@ python -m stream_workflow_editor.api.main
 
 ## 打包和发布
 
-### 构建前端并打包
+### 发版流程
+
+**重要**: 在发版前，必须先构建前端静态文件并提交到仓库，这样从 git 仓库安装时才能正常使用。
 
 ```bash
-# 构建前端静态文件
+# 1. 构建前端静态文件（必须步骤）
 python build_frontend.py
 
-# 构建 Python 包
+# 2. 提交构建后的 static 目录到 git（如果尚未提交）
+git add src/stream_workflow_editor/static/
+git commit -m "chore: 构建前端静态文件"
+
+# 3. 构建 Python 包
 pip install build
 python -m build
 
-# 发布到 PyPI（需要配置 twine）
+# 4. 发布到 PyPI（需要配置 twine）
 twine upload dist/*
+
+# 5. 创建 git tag（可选）
+git tag v0.2.2
+git push origin v0.2.2
+```
+
+### 从 GitHub 仓库安装
+
+```bash
+# 从 GitHub 仓库安装（推荐）
+pip install git+https://github.com/cnwinds/stream-workflow-editor.git
+
+# 或安装指定版本
+pip install git+https://github.com/cnwinds/stream-workflow-editor.git@v0.2.2
 ```
 
 ### 本地安装测试
