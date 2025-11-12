@@ -19,22 +19,103 @@ def get_template_file() -> Path:
 def load_template() -> str:
     """加载节点代码模板"""
     template_file = get_template_file()
-    with open(template_file, 'r', encoding='utf-8') as f:
-        content = f.read()
-        # 模板文件中存储的是字符串变量，提取实际模板内容
-        # 从 NODE_TEMPLATE = ''' 开始到 ''' 结束
-        start_marker = "NODE_TEMPLATE = '''"
-        end_marker = "'''"
+    
+    # 尝试从文件系统加载模板
+    try:
+        if template_file.exists():
+            with open(template_file, 'r', encoding='utf-8') as f:
+                content = f.read()
+                # 模板文件中存储的是字符串变量，提取实际模板内容
+                # 从 NODE_TEMPLATE = ''' 开始到 ''' 结束
+                start_marker = "NODE_TEMPLATE = '''"
+                end_marker = "'''"
+                
+                start_idx = content.find(start_marker)
+                if start_idx != -1:
+                    start_idx += len(start_marker)
+                    end_idx = content.rfind(end_marker)
+                    if end_idx > start_idx:
+                        return content[start_idx:end_idx]
+                
+                # 如果没有找到标记，返回整个文件内容（可能是直接的模板文件）
+                return content
+    except (FileNotFoundError, IOError, OSError):
+        # 如果文件不存在或读取失败，使用内置模板
+        pass
+    
+    # 回退到使用内置模板
+    try:
+        from stream_workflow_editor.custom_nodes.templates.node_template import NODE_TEMPLATE
+        return NODE_TEMPLATE
+    except ImportError:
+        # 如果导入失败，使用硬编码的默认模板
+        return _get_default_template()
+
+
+def _get_default_template() -> str:
+    """获取默认的节点代码模板（作为最后的回退选项）"""
+    return '''"""
+{{description}}
+"""
+from stream_workflow.core import Node, ParameterSchema, register_node
+
+@register_node('{{node_id}}')
+class {{class_name}}(Node):
+    """{{description}}"""
+    
+    # 节点元信息
+    NAME = "{{name}}"
+    CATEGORY = "{{category}}"
+    EXECUTION_MODE = '{{execution_mode}}'
+    COLOR = '{{color}}'
+    
+    # 输入参数定义
+    INPUT_PARAMS = {
+{% for param in inputs %}
+        "{{param.name}}": ParameterSchema(
+            is_streaming={% if param.is_streaming %}True{% else %}False{% endif %},
+            schema={{param.schema|tojson if param.schema else '{}'}}
+        ){% if not loop.last %},{% endif %}
+{% endfor %}
+    }
+    
+    # 输出参数定义
+    OUTPUT_PARAMS = {
+{% for param in outputs %}
+        "{{param.name}}": ParameterSchema(
+            is_streaming={% if param.is_streaming %}True{% else %}False{% endif %},
+            schema={{param.schema|tojson if param.schema else '{}'}}
+        ){% if not loop.last %},{% endif %}
+{% endfor %}
+    }
+    
+    # 配置Schema
+    CONFIG_SCHEMA = {{config_schema|tojson}}
+    
+    async def run(self, context):
+        """节点执行逻辑"""
+        # 获取输入参数
+{% for param in inputs %}
+        {{param.name}} = context.get_input("{{param.name}}")
+{% endfor %}
         
-        start_idx = content.find(start_marker)
-        if start_idx != -1:
-            start_idx += len(start_marker)
-            end_idx = content.rfind(end_marker)
-            if end_idx > start_idx:
-                return content[start_idx:end_idx]
+        # 获取配置参数
+        config = self.config or {}
+{% for key in config_schema.keys() %}
+        {{key}} = config.get("{{key}}", {{config_schema[key].get('default', 'None')|tojson}})
+{% endfor %}
         
-        # 如果没有找到标记，返回整个文件内容（可能是直接的模板文件）
-        return content
+        # TODO: 实现你的业务逻辑
+        # 示例：
+        # result = process_data({{inputs[0].name if inputs else 'None'}})
+        
+        # 返回输出
+        return {
+{% for param in outputs %}
+            "{{param.name}}": None,  # 替换为实际值
+{% endfor %}
+        }
+'''
 
 
 def to_python_class_name(node_id: str) -> str:
