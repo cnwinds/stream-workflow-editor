@@ -1,7 +1,7 @@
 /**
  * 节点代码生成器（前端）
  */
-import { ParameterSchema } from '@/types/node'
+import { ParameterSchema, FieldSchemaDef } from '@/types/node'
 
 export const nodeGenerator = {
   generateNodeCode(request: {
@@ -13,9 +13,9 @@ export const nodeGenerator = {
     color: string
     inputs: Record<string, ParameterSchema>
     outputs: Record<string, ParameterSchema>
-    configSchema: Record<string, any>
+    configParams?: Record<string, FieldSchemaDef>
   }): string {
-    const { nodeId, name, description, category, executionMode, color, inputs, outputs, configSchema } = request
+    const { nodeId, name, description, category, executionMode, color, inputs, outputs, configParams } = request
 
     // 转换为Python类名
     const className = nodeId
@@ -27,11 +27,13 @@ export const nodeGenerator = {
     const inputParamsCode = Object.entries(inputs)
       .map(([paramName, param], index, arr) => {
         const isStreaming = param.isStreaming ? 'True' : 'False'
+        const description = param.description ? JSON.stringify(param.description) : '""'
         const schema = JSON.stringify(param.schema || {})
         const comma = index < arr.length - 1 ? ',' : ''
         return `        "${paramName}": ParameterSchema(
             is_streaming=${isStreaming},
-            schema=${schema}
+            schema=${schema},
+            description=${description}
         )${comma}`
       })
       .join('\n')
@@ -40,22 +42,47 @@ export const nodeGenerator = {
     const outputParamsCode = Object.entries(outputs)
       .map(([paramName, param], index, arr) => {
         const isStreaming = param.isStreaming ? 'True' : 'False'
+        const description = param.description ? JSON.stringify(param.description) : '""'
         const schema = JSON.stringify(param.schema || {})
         const comma = index < arr.length - 1 ? ',' : ''
         return `        "${paramName}": ParameterSchema(
             is_streaming=${isStreaming},
-            schema=${schema}
+            schema=${schema},
+            description=${description}
         )${comma}`
       })
       .join('\n')
 
+    // 生成配置参数代码（使用 FieldSchema 格式）
+    const configParamsCode = configParams && Object.keys(configParams).length > 0
+      ? Object.entries(configParams)
+          .map(([paramName, fieldDef], index, arr) => {
+            // FieldSchema 可以是字符串（简单格式）或对象（详细格式）
+            const fieldDefStr = typeof fieldDef === 'string' 
+              ? JSON.stringify(fieldDef)
+              : JSON.stringify(fieldDef)
+            const comma = index < arr.length - 1 ? ',' : ''
+            return `        "${paramName}": ${fieldDefStr}${comma}`
+          })
+          .join('\n')
+      : null
+
     // 生成配置获取代码
-    const configKeys = Object.keys(configSchema || {})
+    const configKeys = configParams ? Object.keys(configParams) : []
     const configGettersCode = configKeys
       .map((key) => {
-        const defaultValue = configSchema[key]?.default
-        const defaultStr = defaultValue !== undefined ? JSON.stringify(defaultValue) : 'None'
-        return `        ${key} = config.get("${key}", ${defaultStr})`
+        if (configParams && configParams[key]) {
+          // FieldSchema 格式：如果是详细格式，可能包含默认值
+          const fieldDef = configParams[key]
+          if (typeof fieldDef === 'object' && fieldDef !== null && 'default' in fieldDef) {
+            const defaultValue = JSON.stringify(fieldDef.default)
+            return `        ${key} = config.get("${key}", ${defaultValue})`
+          } else {
+            return `        ${key} = config.get("${key}", None)`
+          }
+        } else {
+          return `        ${key} = config.get("${key}", None)`
+        }
       })
       .join('\n')
 
@@ -97,8 +124,8 @@ ${inputParamsCode}
 ${outputParamsCode}
     }
     
-    # 配置Schema
-    CONFIG_SCHEMA = ${JSON.stringify(configSchema, null, 4)}
+    # 配置参数定义
+${configParamsCode ? `    CONFIG_PARAMS = {\n${configParamsCode}\n    }` : '    CONFIG_PARAMS = {}'}
     
     async def run(self, context):
         """节点执行逻辑"""

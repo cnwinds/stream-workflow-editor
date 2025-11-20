@@ -36,6 +36,7 @@ interface WorkflowState {
     color?: string
     inputParams?: Record<string, any>
     outputParams?: Record<string, any>
+    configParams?: Record<string, any>
   }) => void
   
   // 撤销/重做
@@ -550,12 +551,15 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
           }
         }
         
-        // 更新输入输出参数schema
+        // 更新输入输出配置参数schema（包含 required 和 description）
         if (nodeTypeData.inputParams !== undefined) {
           updatedData.inputParams = nodeTypeData.inputParams
         }
         if (nodeTypeData.outputParams !== undefined) {
           updatedData.outputParams = nodeTypeData.outputParams
+        }
+        if (nodeTypeData.configParams !== undefined) {
+          updatedData.configParams = nodeTypeData.configParams
         }
         
         return {

@@ -117,7 +117,6 @@ export const nodeApi = {
     color: string
     inputs: Record<string, { isStreaming: boolean; schema: Record<string, any> }>
     outputs: Record<string, { isStreaming: boolean; schema: Record<string, any> }>
-    configSchema: Record<string, any>
     pythonCode?: string
   }) => {
     const response = await api.post('/nodes/custom', request)
@@ -152,7 +151,6 @@ export const nodeApi = {
     color: string
     inputs: Record<string, { isStreaming: boolean; schema: Record<string, any> }>
     outputs: Record<string, { isStreaming: boolean; schema: Record<string, any> }>
-    configSchema: Record<string, any>
     pythonCode?: string
   }) => {
     const response = await api.put(`/nodes/custom/${nodeId}/full`, request)

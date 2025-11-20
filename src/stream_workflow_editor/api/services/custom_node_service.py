@@ -75,7 +75,7 @@ def save_registry(registry: Dict[str, Any]):
     registry_file = get_registry_file()
     with open(registry_file, 'w', encoding='utf-8') as f:
         json.dump(registry, f, ensure_ascii=False, indent=2)
-
+    logger.debug(f"已保存注册表: {registry_file}")
 
 def camel_to_snake(name: str) -> str:
     """将驼峰命名转换为下划线命名
@@ -88,6 +88,72 @@ def camel_to_snake(name: str) -> str:
     # 处理连续大写字母（如 HTTPRequest -> HTTP_Request）
     s2 = re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1)
     return s2.lower()
+
+
+def _extract_node_id_from_file(py_file: Path) -> Optional[str]:
+    """从Python文件中提取节点ID（统一提取逻辑）
+    
+    提取顺序：
+    1. 从代码中提取 @register_node('xxx') 中的值（最可靠）
+    2. 加载模块，从 __node_id__ 属性获取
+    3. 从类名推断（最后手段）
+    
+    Returns:
+        节点ID，如果无法提取则返回None
+    """
+    import re
+    
+    # 方法1: 从代码文件中直接提取 @register_node 装饰器的值
+    try:
+        with open(py_file, 'r', encoding='utf-8') as f:
+            python_code = f.read()
+        match = re.search(r"@register_node\(['\"]([^'\"]+)['\"]\)", python_code)
+        if match:
+            node_id = match.group(1)
+            logger.debug(f"从代码文件提取节点ID: {node_id} ({py_file.name})")
+            return node_id
+    except Exception as e:
+        logger.warning(f"无法从代码文件提取节点ID: {e}")
+    
+    # 方法2: 加载模块，从 __node_id__ 属性获取
+    if Node is None:
+        return None
+    
+    try:
+        module_name = py_file.stem
+        import importlib.util
+        
+        # 清除模块缓存
+        if module_name in sys.modules:
+            del sys.modules[module_name]
+        
+        spec = importlib.util.spec_from_file_location(module_name, py_file)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        
+        # 查找节点类
+        for name, obj in inspect.getmembers(module, inspect.isclass):
+            if (issubclass(obj, Node) and obj != Node):
+                node_id = getattr(obj, '__node_id__', None)
+                if node_id:
+                    logger.debug(f"从 __node_id__ 获取节点ID: {node_id} ({py_file.name})")
+                    return node_id
+                
+                # 方法3: 从类名推断（最后手段）
+                logger.warning(f"节点类 {name} 没有 __node_id__ 属性，从类名推断节点ID")
+                inferred_id = camel_to_snake(name)
+                if inferred_id.endswith('_node'):
+                    pass  # 已经是正确的格式
+                elif inferred_id.endswith('node'):
+                    inferred_id = inferred_id.replace('node', '_node')
+                else:
+                    inferred_id = f"{inferred_id}_node"
+                logger.debug(f"从类名推断节点ID: {inferred_id} ({py_file.name})")
+                return inferred_id
+    except Exception as e:
+        logger.warning(f"加载模块提取节点ID失败: {e} ({py_file.name})")
+    
+    return None
 
 
 def extract_node_metadata(node_class) -> Dict[str, Any]:
@@ -114,13 +180,15 @@ def extract_node_metadata(node_class) -> Dict[str, Any]:
                 schema = getattr(param_schema, "schema", {})
                 input_params[param_name] = {
                     "isStreaming": getattr(param_schema, "is_streaming", False),
-                    "schema": schema,  # 字段名到类型的映射
+                    "schema": schema,  # 可以是字符串（简单类型）或字典（结构体）
+                    "description": getattr(param_schema, "description", ""),
                 }
             elif isinstance(param_schema, dict):
-                input_params[param_name] = {
-                    "isStreaming": param_schema.get("is_streaming", False) or param_schema.get("isStreaming", False),
-                    "schema": param_schema.get("schema", {}),
-                }
+                                input_params[param_name] = {
+                                    "isStreaming": param_schema.get("is_streaming", False) or param_schema.get("isStreaming", False),
+                                    "schema": param_schema.get("schema", {}),
+                                    "description": param_schema.get("description", ""),
+                                }
     
     # 提取输出参数（保持字典格式）
     output_params = {}
@@ -128,19 +196,57 @@ def extract_node_metadata(node_class) -> Dict[str, Any]:
     if raw_output_params:
         for param_name, param_schema in raw_output_params.items():
             if isinstance(param_schema, ParameterSchema):
-                output_params[param_name] = {
-                    "isStreaming": getattr(param_schema, "is_streaming", False),
-                    "schema": getattr(param_schema, "schema", {}),
-                }
+                                output_params[param_name] = {
+                                    "isStreaming": getattr(param_schema, "is_streaming", False),
+                                    "schema": getattr(param_schema, "schema", {}),
+                                    "description": getattr(param_schema, "description", ""),
+                                }
             elif isinstance(param_schema, dict):
-                output_params[param_name] = {
-                    "isStreaming": param_schema.get("is_streaming", False) or param_schema.get("isStreaming", False),
-                    "schema": param_schema.get("schema", {}),
-                }
+                                output_params[param_name] = {
+                                    "isStreaming": param_schema.get("is_streaming", False) or param_schema.get("isStreaming", False),
+                                    "schema": param_schema.get("schema", {}),
+                                    "description": param_schema.get("description", ""),
+                                }
+    
+    # 提取配置参数（使用 FieldSchema 格式）
+    config_params = {}
+    raw_config_params = getattr(node_class, "CONFIG_PARAMS", {})
+    if raw_config_params:
+        # CONFIG_PARAMS 使用 FieldSchema 格式
+        # FieldSchema 可以是字符串（简单格式）或字典（详细格式）
+        for param_name, field_def in raw_config_params.items():
+            if isinstance(field_def, str):
+                # 简单格式: "string"
+                config_params[param_name] = field_def
+            elif isinstance(field_def, dict):
+                # 详细格式: {"type": "string", "required": True, "description": "...", "default": "..."}
+                config_params[param_name] = field_def
+            else:
+                # 尝试从 FieldSchema 对象提取
+                try:
+                    from stream_workflow.core.parameter import FieldSchema
+                    if isinstance(field_def, FieldSchema):
+                        # 从 FieldSchema 对象提取
+                        field_dict = {
+                            "type": getattr(field_def, "type", "any"),
+                        }
+                        if getattr(field_def, "required", False):
+                            field_dict["required"] = True
+                        if getattr(field_def, "description", ""):
+                            field_dict["description"] = getattr(field_def, "description", "")
+                        if getattr(field_def, "default", None) is not None:
+                            field_dict["default"] = getattr(field_def, "default")
+                        config_params[param_name] = field_dict
+                    else:
+                        # 默认简单格式
+                        config_params[param_name] = "any"
+                except ImportError:
+                    # 如果无法导入 FieldSchema，使用默认值
+                    config_params[param_name] = "any"
     
     metadata["inputs"] = input_params  # 保持字典格式
     metadata["outputs"] = output_params  # 保持字典格式
-    metadata["configSchema"] = getattr(node_class, "CONFIG_SCHEMA", {})
+    metadata["configParams"] = config_params  # 使用 FieldSchema 格式
     
     return metadata
 
@@ -158,15 +264,10 @@ def get_custom_node_metadata(node_id: str) -> Optional[Dict[str, Any]]:
         # 加载注册表
         registry = load_registry()
         
-        # 查找节点（支持通过注册表ID或节点类型查找）
+        # 查找节点（通过 id，id 就是 register 名字）
         node_entry = None
         for node in registry.get("custom_nodes", []):
-            # 匹配注册表ID
             if node.get("id") == node_id:
-                node_entry = node
-                break
-            # 匹配节点类型
-            if node.get("type") == node_id:
                 node_entry = node
                 break
         
@@ -236,41 +337,20 @@ def get_custom_node_metadata(node_id: str) -> Optional[Dict[str, Any]]:
         # 提取元数据
         metadata = extract_node_metadata(node_class)
         
-        # 获取实际的节点类型（从装饰器获取）
-        actual_node_type = getattr(node_class, '__node_id__', None)
-        if not actual_node_type:
-            # 如果没有装饰器，从类名推断节点ID（驼峰命名转下划线命名）
-            for name, obj in inspect.getmembers(module, inspect.isclass):
-                if obj == node_class:
-                    # 将驼峰命名转换为下划线命名，例如 OpeningAgentNode -> opening_agent_node
-                    inferred_id = camel_to_snake(name)
-                    # 移除末尾的 'node'（如果存在）
-                    if inferred_id.endswith('_node'):
-                        inferred_id = inferred_id  # 已经是正确的格式
-                    elif inferred_id.endswith('node'):
-                        inferred_id = inferred_id.replace('node', '_node')
-                    else:
-                        inferred_id = f"{inferred_id}_node"
-                    actual_node_type = inferred_id
-                    break
+        # 获取实际的节点ID（从 @register_node 装饰器）
+        # id 就是 register 名字，所以直接使用
+        actual_node_id = metadata.get("id")
+        if not actual_node_id:
+            actual_node_id = getattr(node_class, '__node_id__', None)
         
-        # 使用实际的节点类型作为 id（用于工作流配置）
-        # 优先级：1. 从装饰器获取的 actual_node_type（最准确）
-        #         2. 注册表中的 type（可能过时或不准确）
-        #         3. 注册表ID（fallback）
-        registry_type = node_entry.get("type")
-        final_node_type = actual_node_type or registry_type or node_id
+        # 使用实际的节点ID（register 名字），如果没有则使用注册表中的ID
+        final_node_id = actual_node_id or node_id
         
-        # 如果从装饰器获取的节点类型与注册表中的不同，更新注册表
-        if actual_node_type and actual_node_type != registry_type:
-            node_entry["type"] = actual_node_type
-            save_registry(registry)
-        if final_node_type:
-            metadata["id"] = final_node_type
+        # 注意：这里不更新注册表，注册表的更新应该由专门的函数负责
+        # 如果发现ID不一致，应该在调用方处理（如 list_custom_nodes）
         
-        # 保存注册表ID（用于节点管理）和实际节点类型
-        metadata["registryId"] = node_id  # 注册表ID（用于管理）
-        metadata["type"] = final_node_type  # 实际节点类型（用于工作流配置）
+        # 确保使用正确的节点ID
+        metadata["id"] = final_node_id
         metadata["pythonFile"] = python_file
         metadata["createdAt"] = node_entry.get("createdAt")
         metadata["updatedAt"] = node_entry.get("updatedAt")
@@ -314,24 +394,75 @@ def create_custom_node(
     with open(python_path, 'w', encoding='utf-8') as f:
         f.write(python_code)
     
-    # 尝试从生成的代码中提取实际的节点类型（从 @register_node 装饰器）
-    # 这里先保存，实际类型会在第一次加载时更新
-    actual_type = None
+    # 从代码中提取 @register_node 中的值作为实际的节点ID
+    # 使用 register 名字作为 id，这样 id 和 register 名字保持一致
+    actual_node_id = None
     try:
         # 简单正则匹配提取 @register_node('xxx') 中的 xxx
         import re
         match = re.search(r"@register_node\(['\"]([^'\"]+)['\"]\)", python_code)
         if match:
-            actual_type = match.group(1)
-    except Exception:
-        pass
+            actual_node_id = match.group(1)
+            logger.debug(f"从代码中提取节点ID: {actual_node_id}")
+    except Exception as e:
+        logger.warning(f"无法从代码提取节点ID: {e}")
+    
+    # 如果从代码提取失败，尝试加载模块验证（确保装饰器正确执行）
+    if not actual_node_id:
+        try:
+            import importlib
+            import importlib.util
+            import inspect
+            from stream_workflow.core.node import Node
+            
+            # 清除模块缓存（如果存在）
+            module_name = python_path.stem
+            if module_name in sys.modules:
+                del sys.modules[module_name]
+            
+            # 加载模块
+            spec = importlib.util.spec_from_file_location(module_name, python_path)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            
+            # 查找节点类并获取 __node_id__
+            for name, obj in inspect.getmembers(module, inspect.isclass):
+                if (issubclass(obj, Node) and obj != Node):
+                    actual_node_id = getattr(obj, '__node_id__', None)
+                    if actual_node_id:
+                        logger.debug(f"从模块加载获取节点ID: {actual_node_id}")
+                    break
+        except Exception as e:
+            logger.warning(f"无法从模块加载获取节点ID: {e}")
+    
+    # 如果没有提取到 register 名字，使用用户输入的 node_id 作为 fallback
+    if not actual_node_id:
+        logger.warning(f"无法从 @register_node 提取节点ID，使用用户输入的 node_id: {node_id}")
+        actual_node_id = node_id
+    
+    # 如果 register 名字和用户输入的 node_id 不一致，需要重命名文件
+    if actual_node_id != node_id:
+        logger.info(f"节点ID不一致：用户输入={node_id}，register名字={actual_node_id}，将使用 register 名字")
+        # 删除旧文件
+        if python_path.exists():
+            python_path.unlink()
+        # 使用 register 名字生成新文件名
+        python_file = f"{actual_node_id}.py"
+        python_path = get_custom_nodes_dir() / python_file
+        # 重新保存代码
+        with open(python_path, 'w', encoding='utf-8') as f:
+            f.write(python_code)
+    
+    # 检查节点ID是否已存在（使用 register 名字）
+    for node in registry.get("custom_nodes", []):
+        if node.get("id") == actual_node_id:
+            raise ValueError(f"节点ID已存在: {actual_node_id} (来自 @register_node)")
     
     # 添加到注册表
     now = datetime.utcnow().isoformat() + "Z"
     mtime = python_path.stat().st_mtime
     node_entry = {
-        "id": node_id,  # 注册表唯一标识（用于文件管理）
-        "type": actual_type,  # 实际节点类型（从 @register_node 获取，用于工作流配置）
+        "id": actual_node_id,  # 使用 @register_node 中的值作为 id
         "pythonFile": python_file,
         "mtime": mtime,  # 文件修改时间
         "createdAt": now,
@@ -365,10 +496,10 @@ def update_custom_node(
     # 加载注册表
     registry = load_registry()
     
-    # 查找节点（支持通过注册表ID或节点类型查找）
+    # 查找节点（通过 id，id 就是 register 名字）
     node_entry = None
     for node in registry.get("custom_nodes", []):
-        if node.get("id") == node_id or node.get("type") == node_id:
+        if node.get("id") == node_id:
             node_entry = node
             break
     
@@ -382,16 +513,32 @@ def update_custom_node(
     with open(python_path, 'w', encoding='utf-8') as f:
         f.write(python_code)
     
-    # 尝试从代码中提取实际的节点类型并更新注册表
-    actual_type = None
+    # 尝试从代码中提取实际的节点ID（register 名字）并更新注册表
+    actual_node_id = None
     try:
         import re
         match = re.search(r"@register_node\(['\"]([^'\"]+)['\"]\)", python_code)
         if match:
-            actual_type = match.group(1)
-            node_entry["type"] = actual_type
-    except Exception:
-        pass
+            actual_node_id = match.group(1)
+            # 如果 register 名字和当前 id 不一致，需要更新
+            if actual_node_id != node_entry.get("id"):
+                # 检查新ID是否已存在
+                for node in registry.get("custom_nodes", []):
+                    if node.get("id") == actual_node_id and node.get("id") != node_id:
+                        raise ValueError(f"节点ID已存在: {actual_node_id}")
+                # 更新 id 和文件名
+                old_python_file = node_entry.get("pythonFile")
+                new_python_file = f"{actual_node_id}.py"
+                if old_python_file != new_python_file:
+                    # 重命名文件
+                    old_path = get_custom_nodes_dir() / old_python_file
+                    new_path = get_custom_nodes_dir() / new_python_file
+                    if old_path.exists():
+                        old_path.rename(new_path)
+                    node_entry["pythonFile"] = new_python_file
+                node_entry["id"] = actual_node_id
+    except Exception as e:
+        logger.warning(f"无法从代码提取节点ID: {e}")
     
     # 更新注册表
     node_entry["updatedAt"] = datetime.utcnow().isoformat() + "Z"
@@ -430,10 +577,10 @@ def update_custom_node_full(
     # 加载注册表
     registry = load_registry()
     
-    # 查找节点（支持通过注册表ID或节点类型查找）
+    # 查找节点（通过 id，id 就是 register 名字）
     node_entry = None
     for node in registry.get("custom_nodes", []):
-        if node.get("id") == node_id or node.get("type") == node_id:
+        if node.get("id") == node_id:
             node_entry = node
             break
     
@@ -458,16 +605,32 @@ def update_custom_node_full(
             if saved_content != python_code:
                 logger.warning("保存的内容与原始内容不匹配！")
     
-    # 尝试从代码中提取实际的节点类型并更新注册表
-    actual_type = None
+    # 尝试从代码中提取实际的节点ID（register 名字）并更新注册表
+    actual_node_id = None
     try:
         import re
         match = re.search(r"@register_node\(['\"]([^'\"]+)['\"]\)", python_code)
         if match:
-            actual_type = match.group(1)
-            node_entry["type"] = actual_type
-    except Exception:
-        pass
+            actual_node_id = match.group(1)
+            # 如果 register 名字和当前 id 不一致，需要更新
+            if actual_node_id != node_entry.get("id"):
+                # 检查新ID是否已存在
+                for node in registry.get("custom_nodes", []):
+                    if node.get("id") == actual_node_id and node.get("id") != node_id:
+                        raise ValueError(f"节点ID已存在: {actual_node_id}")
+                # 更新 id 和文件名
+                old_python_file = node_entry.get("pythonFile")
+                new_python_file = f"{actual_node_id}.py"
+                if old_python_file != new_python_file:
+                    # 重命名文件
+                    old_path = get_custom_nodes_dir() / old_python_file
+                    new_path = get_custom_nodes_dir() / new_python_file
+                    if old_path.exists():
+                        old_path.rename(new_path)
+                    node_entry["pythonFile"] = new_python_file
+                node_entry["id"] = actual_node_id
+    except Exception as e:
+        logger.warning(f"无法从代码提取节点ID: {e}")
     
     # 更新注册表
     node_entry["updatedAt"] = datetime.utcnow().isoformat() + "Z"
@@ -510,10 +673,10 @@ def update_custom_node_parameters(
     # 加载注册表
     registry = load_registry()
     
-    # 查找节点（支持通过注册表ID或节点类型查找）
+    # 查找节点（通过 id，id 就是 register 名字）
     node_entry = None
     for node in registry.get("custom_nodes", []):
-        if node.get("id") == node_id or node.get("type") == node_id:
+        if node.get("id") == node_id:
             node_entry = node
             break
     
@@ -665,10 +828,10 @@ def delete_custom_node(node_id: str) -> bool:
     # 加载注册表
     registry = load_registry()
     
-    # 查找并删除节点（支持通过注册表ID或节点类型查找）
+    # 查找并删除节点（通过 id，id 就是 register 名字）
     node_entry = None
     for i, node in enumerate(registry.get("custom_nodes", [])):
-        if node.get("id") == node_id or node.get("type") == node_id:
+        if node.get("id") == node_id:
             node_entry = node
             registry["custom_nodes"].pop(i)
             break
@@ -696,30 +859,41 @@ def list_custom_nodes() -> List[Dict[str, Any]]:
     
     registry_updated = False
     for node_entry in registry.get("custom_nodes", []):
-        # 使用注册表ID查找文件
-        registry_id = node_entry.get("id")
-        node_type = node_entry.get("type")  # 注册表中的节点类型（可能过时或不准确）
+        # id 就是 register 名字
+        node_id = node_entry.get("id")
         
-        metadata = get_custom_node_metadata(registry_id)  # 使用注册表ID查找文件和提取元数据
+        metadata = get_custom_node_metadata(node_id)  # 使用 id 查找文件和提取元数据
         if metadata:
-            # 优先级：从装饰器获取的节点ID（metadata["id"]）最准确
             # metadata["id"] 已经是从 __node_id__ 提取的，应该与 @register_node 中的值一致
-            # 这样可以确保使用 @register_node 装饰器中指定的正确节点ID
-            final_node_id = metadata.get("id") or node_type or registry_id
-            if final_node_id:
-                metadata["id"] = final_node_id
-                metadata["type"] = final_node_id
-            
             # 如果从装饰器获取的节点ID与注册表中的不同，更新注册表
-            if metadata.get("id") and metadata["id"] != node_type:
-                node_entry["type"] = metadata["id"]
-                registry_updated = True
+            actual_node_id = metadata.get("id")
+            if actual_node_id and actual_node_id != node_id:
+                # 检查新ID是否已存在（避免冲突）
+                for other_node in registry.get("custom_nodes", []):
+                    if other_node.get("id") == actual_node_id and other_node.get("id") != node_id:
+                        logger.warning(f"节点ID冲突: {actual_node_id}，跳过更新")
+                        # 使用注册表中的ID，不更新
+                        metadata["id"] = node_id
+                        break
+                else:
+                    # 需要更新 id 和文件名
+                    old_python_file = node_entry.get("pythonFile")
+                    new_python_file = f"{actual_node_id}.py"
+                    if old_python_file != new_python_file:
+                        # 重命名文件
+                        old_path = get_custom_nodes_dir() / old_python_file
+                        new_path = get_custom_nodes_dir() / new_python_file
+                        if old_path.exists() and not new_path.exists():
+                            old_path.rename(new_path)
+                            node_entry["pythonFile"] = new_python_file
+                        elif old_path.exists() and new_path.exists() and old_path != new_path:
+                            logger.warning(f"目标文件已存在，无法重命名: {new_path}")
+                    node_entry["id"] = actual_node_id
+                    registry_updated = True
             
-            # 保存注册表ID以便管理操作
-            metadata["registryId"] = registry_id
             nodes.append(metadata)
     
-    # 如果注册表有更新，保存它
+    # 如果注册表有更新，保存它（只保存一次）
     if registry_updated:
         save_registry(registry)
     
@@ -824,98 +998,60 @@ def _check_and_update_registry(registry: Dict[str, Any]) -> bool:
 def _create_node_entry_from_file(py_file: Path) -> Optional[Dict[str, Any]]:
     """从Python文件创建节点注册项"""
     try:
-        from stream_workflow.core.node import Node
-    except ImportError:
-        return None
-    
-    import importlib
-    import importlib.util
-    import inspect
-    from datetime import datetime
-    
-    try:
-        module_name = py_file.stem
-        spec = importlib.util.spec_from_file_location(module_name, py_file)
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
+        node_id = _extract_node_id_from_file(py_file)
+        if not node_id:
+            logger.warning(f"无法从文件提取节点ID: {py_file.name}")
+            return None
         
-        # 查找节点类
-        node_type = None
-        for name, obj in inspect.getmembers(module, inspect.isclass):
-            if (issubclass(obj, Node) and obj != Node):
-                # 获取节点类型（从装饰器获取）
-                node_type = getattr(obj, '__node_id__', None)
-                if not node_type:
-                    # 从类名推断节点ID
-                    node_type = camel_to_snake(name)
-                    if node_type.endswith('_node'):
-                        pass
-                    elif node_type.endswith('node'):
-                        node_type = node_type.replace('node', '_node')
-                    else:
-                        node_type = f"{node_type}_node"
-                break
-        
-        if node_type:
-            now = datetime.utcnow().isoformat() + "Z"
-            return {
-                "id": py_file.stem,
-                "type": node_type,
-                "pythonFile": py_file.name,
-                "mtime": py_file.stat().st_mtime,
-                "createdAt": now,
-                "updatedAt": now
-            }
-    
+        now = datetime.utcnow().isoformat() + "Z"
+        return {
+            "id": node_id,  # 使用 register 名字作为 id
+            "pythonFile": py_file.name,
+            "mtime": py_file.stat().st_mtime,
+            "createdAt": now,
+            "updatedAt": now
+        }
     except Exception as e:
-        logger.warning(f"解析节点文件 {py_file.name} 失败: {e}")
-    
-    return None
+        logger.warning(f"解析节点文件 {py_file.name} 失败: {e}", exc_info=True)
+        return None
 
 
 def _update_node_entry(node_entry: Dict[str, Any], py_file: Path):
     """更新节点注册项（当文件被修改时）"""
     try:
-        from stream_workflow.core.node import Node
-    except ImportError:
-        return
-    
-    import importlib
-    import importlib.util
-    import inspect
-    from datetime import datetime
-    
-    try:
-        module_name = py_file.stem
+        node_id = _extract_node_id_from_file(py_file)
+        if not node_id:
+            logger.warning(f"无法确定节点ID: {py_file.name}")
+            return
         
-        # 清除模块缓存
-        if module_name in sys.modules:
-            del sys.modules[module_name]
-        
-        spec = importlib.util.spec_from_file_location(module_name, py_file)
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-        
-        # 查找节点类并更新节点类型
-        for name, obj in inspect.getmembers(module, inspect.isclass):
-            if (issubclass(obj, Node) and obj != Node):
-                node_type = getattr(obj, '__node_id__', None)
-                if not node_type:
-                    node_type = camel_to_snake(name)
-                    if node_type.endswith('_node'):
-                        pass
-                    elif node_type.endswith('node'):
-                        node_type = node_type.replace('node', '_node')
-                    else:
-                        node_type = f"{node_type}_node"
-                
-                node_entry["type"] = node_type
-                node_entry["updatedAt"] = datetime.utcnow().isoformat() + "Z"
-                logger.info(f"已更新节点类型: {node_type}")
-                break
-    
+        # 如果 register 名字和当前 id 不一致，需要更新
+        current_id = node_entry.get("id")
+        if node_id != current_id:
+            # 检查新ID是否已存在（避免冲突）
+            registry = load_registry()
+            for node in registry.get("custom_nodes", []):
+                if node.get("id") == node_id and node.get("id") != current_id:
+                    logger.warning(f"节点ID已存在: {node_id}，跳过更新")
+                    return
+            
+            # 更新 id 和文件名
+            old_python_file = node_entry.get("pythonFile")
+            new_python_file = f"{node_id}.py"
+            if old_python_file != new_python_file:
+                # 重命名文件
+                old_path = get_custom_nodes_dir() / old_python_file
+                new_path = get_custom_nodes_dir() / new_python_file
+                if old_path.exists() and not new_path.exists():
+                    old_path.rename(new_path)
+                    node_entry["pythonFile"] = new_python_file
+                elif old_path.exists() and new_path.exists() and old_path != new_path:
+                    logger.warning(f"目标文件已存在，无法重命名: {new_path}")
+            
+            node_entry["id"] = node_id
+            node_entry["updatedAt"] = datetime.utcnow().isoformat() + "Z"
+            logger.info(f"已更新节点ID: {current_id} -> {node_id}")
     except Exception as e:
-        logger.warning(f"更新节点 {py_file.name} 失败: {e}")
+        logger.warning(f"更新节点 {py_file.name} 失败: {e}", exc_info=True)
 
 
 def _auto_scan_nodes(custom_nodes_dir: Path, registry: Optional[Dict[str, Any]] = None):
@@ -923,76 +1059,42 @@ def _auto_scan_nodes(custom_nodes_dir: Path, registry: Optional[Dict[str, Any]] 
     if registry is None:
         registry = load_registry()
     
-    try:
-        from stream_workflow.core.node import Node
-    except ImportError:
+    if Node is None:
         logger.warning("stream_workflow 未安装，无法扫描节点")
         return
     
-    import importlib
-    import importlib.util
-    import inspect
     from datetime import datetime
     
-    # 检查已存在的节点类型（使用 type 字段，如果没有则使用 id）
-    existing_types = set()
-    existing_registry_ids = set()
+    # 检查已存在的节点ID（id 就是 register 名字）
+    existing_ids = set()
     for node in registry.get("custom_nodes", []):
-        existing_registry_ids.add(node.get("id"))
-        node_type = node.get("type") or node.get("id")
-        existing_types.add(node_type)
+        existing_ids.add(node.get("id"))
     
     # 扫描所有 .py 文件
     for py_file in custom_nodes_dir.glob("*.py"):
         if py_file.name == "__init__.py" or py_file.name.startswith("_"):
             continue
         
-        # 检查文件名是否已在注册表中
-        registry_id = py_file.stem
-        if registry_id in existing_registry_ids:
-            continue  # 已存在，跳过
-        
         try:
-            # 尝试导入模块获取节点ID
-            module_name = py_file.stem
-            spec = importlib.util.spec_from_file_location(module_name, py_file)
-            module = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(module)
+            node_id = _extract_node_id_from_file(py_file)
+            if not node_id:
+                logger.warning(f"无法提取节点ID，跳过文件: {py_file.name}")
+                continue
             
-            # 查找节点类
-            node_type = None
-            for name, obj in inspect.getmembers(module, inspect.isclass):
-                if (issubclass(obj, Node) and obj != Node):
-                    # 获取节点类型（从装饰器获取）
-                    node_type = getattr(obj, '__node_id__', None)
-                    if not node_type:
-                        # 从类名推断节点ID（驼峰命名转下划线命名）
-                        node_type = camel_to_snake(name)
-                        # 移除末尾的 'node'（如果存在）并确保以 _node 结尾
-                        if node_type.endswith('_node'):
-                            pass  # 已经是正确的格式
-                        elif node_type.endswith('node'):
-                            node_type = node_type.replace('node', '_node')
-                        else:
-                            node_type = f"{node_type}_node"
-                    break
-            
-            if node_type and node_type not in existing_types:
+            if node_id not in existing_ids:
                 # 添加到注册表
                 now = datetime.utcnow().isoformat() + "Z"
                 mtime = py_file.stat().st_mtime
                 node_entry = {
-                    "id": registry_id,  # 注册表唯一标识（用于文件管理）
-                    "type": node_type,  # 实际节点类型（从 @register_node 获取，用于工作流配置）
+                    "id": node_id,  # 使用 register 名字作为 id
                     "pythonFile": py_file.name,
                     "mtime": mtime,  # 文件修改时间
                     "createdAt": now,
                     "updatedAt": now
                 }
                 registry.setdefault("custom_nodes", []).append(node_entry)
-                existing_types.add(node_type)
-                existing_registry_ids.add(registry_id)
-                logger.info(f"发现新节点: {node_type} ({py_file.name}, registry_id={registry_id})")
+                existing_ids.add(node_id)
+                logger.info(f"发现新节点: {node_id} ({py_file.name})")
         
         except Exception as e:
             logger.warning(f"扫描节点文件 {py_file.name} 失败: {e}", exc_info=True)
@@ -1004,15 +1106,10 @@ def get_node_code(node_id: str) -> Optional[str]:
     """
     registry = load_registry()
     
-    # 查找节点（支持通过注册表ID或节点类型查找）
+    # 查找节点（通过 id，id 就是 register 名字）
     node_entry = None
     for node in registry.get("custom_nodes", []):
-        # 匹配注册表ID
         if node.get("id") == node_id:
-            node_entry = node
-            break
-        # 匹配节点类型
-        if node.get("type") == node_id:
             node_entry = node
             break
     

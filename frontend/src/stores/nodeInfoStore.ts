@@ -50,7 +50,6 @@ export const useNodeInfoStore = create<NodeInfoState>((set, get) => ({
       category: cn.category,
       executionMode: cn.executionMode,
       color: cn.color,
-      configSchema: cn.configSchema,
     }))
     
     // 更新自定义节点ID集合

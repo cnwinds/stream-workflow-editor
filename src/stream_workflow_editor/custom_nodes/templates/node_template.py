@@ -22,7 +22,8 @@ class {{class_name}}(Node):
 {% for param in inputs %}
         "{{param.name}}": ParameterSchema(
             is_streaming={% if param.is_streaming %}True{% else %}False{% endif %},
-            schema={{param.schema|tojson if param.schema else '{}'}}
+            schema={{param.schema|to_python if param.schema else '{}'}},
+            description={{param.description|to_python if param.description else '""'}}
         ){% if not loop.last %},{% endif %}
 {% endfor %}
     }
@@ -32,13 +33,22 @@ class {{class_name}}(Node):
 {% for param in outputs %}
         "{{param.name}}": ParameterSchema(
             is_streaming={% if param.is_streaming %}True{% else %}False{% endif %},
-            schema={{param.schema|tojson if param.schema else '{}'}}
+            schema={{param.schema|to_python if param.schema else '{}'}},
+            description={{param.description|to_python if param.description else '""'}}
         ){% if not loop.last %},{% endif %}
 {% endfor %}
     }
     
-    # 配置Schema
-    CONFIG_SCHEMA = {{config_schema|tojson}}
+    # 配置参数定义（使用 FieldSchema 格式）
+{% if config_params %}
+    CONFIG_PARAMS = {
+{% for param in config_params %}
+        "{{param.name}}": {% if param.format == 'simple' %}{{param.field_def|to_python}}{% else %}{{param.field_def|to_python}}{% endif %}{% if not loop.last %},{% endif %}
+{% endfor %}
+    }
+{% else %}
+    CONFIG_PARAMS = {}
+{% endif %}
     
     async def run(self, context):
         """节点执行逻辑"""
@@ -49,9 +59,11 @@ class {{class_name}}(Node):
         
         # 获取配置参数
         config = self.config or {}
-{% for key in config_schema.keys() %}
-        {{key}} = config.get("{{key}}", {{config_schema[key].get('default', 'None')|tojson}})
+{% if config_params %}
+{% for param in config_params %}
+        {{param.name}} = config.get("{{param.name}}", None)
 {% endfor %}
+{% endif %}
         
         # TODO: 实现你的业务逻辑
         # 示例：

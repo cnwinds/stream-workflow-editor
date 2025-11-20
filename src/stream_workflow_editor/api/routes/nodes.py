@@ -16,7 +16,11 @@ from ..services.custom_node_service import (
     get_node_code,
     get_custom_node_metadata
 )
-from ..services.node_generator import generate_node_code, validate_node_definition
+from ..services.node_generator import (
+    generate_node_code,
+    validate_node_definition,
+    _convert_js_json_booleans_to_python,
+)
 
 router = APIRouter()
 
@@ -30,13 +34,12 @@ class NodeType(BaseModel):
     executionMode: str  # sequential, streaming, hybrid
     color: Optional[str] = None
     # inputs 和 outputs 不在节点类型中返回，前端通过 /schema 端点获取详细参数信息
-    configSchema: Optional[Dict[str, Any]] = None
 
 
 class NodeSchema(BaseModel):
     INPUT_PARAMS: Optional[Dict[str, Any]] = None
     OUTPUT_PARAMS: Optional[Dict[str, Any]] = None
-    CONFIG_SCHEMA: Optional[Dict[str, Any]] = None
+    CONFIG_PARAMS: Optional[Dict[str, Any]] = None  # 配置参数，使用 FieldSchema 格式
 
 
 @router.get("/types", response_model=List[NodeType])
@@ -67,7 +70,7 @@ async def get_node_schema(node_type: str):
         return NodeSchema(
             INPUT_PARAMS={},
             OUTPUT_PARAMS={},
-            CONFIG_SCHEMA={},
+            CONFIG_PARAMS={},
         )
 
 
@@ -79,9 +82,10 @@ class CreateNodeRequest(BaseModel):
     category: str
     executionMode: str
     color: str
-    inputs: Dict[str, Dict[str, Any]]  # 改为字典结构，key是输入名称，value包含isStreaming和schema
-    outputs: Dict[str, Dict[str, Any]]  # 改为字典结构，key是输出名称，value包含isStreaming和schema
-    configSchema: Dict[str, Any]
+    inputs: Dict[str, Dict[str, Any]]  # 改为字典结构，key是输入名称，value包含isStreaming、schema、required、description
+    outputs: Dict[str, Dict[str, Any]]  # 改为字典结构，key是输出名称，value包含isStreaming、schema、required、description
+    configParams: Optional[Dict[str, Dict[str, Any]]] = None  # 配置参数，使用 ParameterSchema 格式
+  # 向后兼容，保留旧格式
     pythonCode: Optional[str] = None
 
 
@@ -107,7 +111,8 @@ async def create_custom_node_endpoint(request: CreateNodeRequest):
             {
                 'name': name,
                 'isStreaming': param.get('isStreaming', False),
-                'schema': param.get('schema', {})
+                'schema': param.get('schema', {}),
+                'description': param.get('description', '')
             }
             for name, param in request.inputs.items()
         ]
@@ -115,10 +120,14 @@ async def create_custom_node_endpoint(request: CreateNodeRequest):
             {
                 'name': name,
                 'isStreaming': param.get('isStreaming', False),
-                'schema': param.get('schema', {})
+                'schema': param.get('schema', {}),
+                'description': param.get('description', '')
             }
             for name, param in request.outputs.items()
         ]
+        
+        # 处理配置参数
+        config_data = request.configParams or {}
         
         # 如果提供了Python代码，使用提供的代码；否则生成代码
         if request.pythonCode:
@@ -133,7 +142,7 @@ async def create_custom_node_endpoint(request: CreateNodeRequest):
                 color=request.color,
                 inputs=inputs_list,
                 outputs=outputs_list,
-                config_schema=request.configSchema
+                config_schema=config_data
             )
         
         # 创建节点（保存为字典格式）
@@ -146,7 +155,7 @@ async def create_custom_node_endpoint(request: CreateNodeRequest):
             color=request.color,
             inputs=request.inputs,  # 保存为字典格式
             outputs=request.outputs,  # 保存为字典格式
-            config_schema=request.configSchema,
+            config_schema=config_data,  # 使用处理后的配置数据
             python_code=python_code
         )
         
@@ -293,7 +302,8 @@ async def update_custom_node_full_endpoint(node_id: str, request: CreateNodeRequ
             {
                 'name': name,
                 'isStreaming': param.get('isStreaming', False),
-                'schema': param.get('schema', {})
+                'schema': param.get('schema', {}),
+                'description': param.get('description', '')
             }
             for name, param in request.inputs.items()
         ]
@@ -301,10 +311,14 @@ async def update_custom_node_full_endpoint(node_id: str, request: CreateNodeRequ
             {
                 'name': name,
                 'isStreaming': param.get('isStreaming', False),
-                'schema': param.get('schema', {})
+                'schema': param.get('schema', {}),
+                'description': param.get('description', '')
             }
             for name, param in request.outputs.items()
         ]
+        
+        # 处理配置参数
+        config_data = request.configParams or {}
         
         # 如果提供了Python代码，使用提供的代码；否则生成代码
         # 编辑模式下，优先使用用户提供的代码
@@ -323,8 +337,10 @@ async def update_custom_node_full_endpoint(node_id: str, request: CreateNodeRequ
                 color=request.color,
                 inputs=inputs_list,
                 outputs=outputs_list,
-                config_schema=request.configSchema
+                config_schema=config_data
             )
+        
+        python_code = _convert_js_json_booleans_to_python(python_code)
         
         # 更新节点（保存为字典格式）
         node_entry = update_custom_node_full(
@@ -336,7 +352,7 @@ async def update_custom_node_full_endpoint(node_id: str, request: CreateNodeRequ
             color=request.color,
             inputs=request.inputs,  # 保存为字典格式
             outputs=request.outputs,  # 保存为字典格式
-            config_schema=request.configSchema,
+            config_schema=config_data,  # 使用处理后的配置数据
             python_code=python_code
         )
         

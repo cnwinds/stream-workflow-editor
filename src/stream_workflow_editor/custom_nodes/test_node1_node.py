@@ -17,15 +17,18 @@ class TestNode1Node(Node):
     INPUT_PARAMS = {
         "text_stream": ParameterSchema(
             is_streaming=True,
-            schema={"field_1":"string","field_2":"string","field_3":"string"}
+            schema={"field_1":"string","field_2":"string","field_3":"string"},
+            description=""
         ),
         "status": ParameterSchema(
             is_streaming=True,
-            schema={"field_1":"string"}
+            schema={"field_1":"string"},
+            description=""
         ),
         "helloworld": ParameterSchema(
             is_streaming=True,
-            schema={}
+            schema={},
+            description=""
         )
     }
     
@@ -33,12 +36,15 @@ class TestNode1Node(Node):
     OUTPUT_PARAMS = {
         "o1": ParameterSchema(
             is_streaming=True,
-            schema={}
+            schema={},
+            description=""
         )
     }
     
-    # 配置Schema
-    CONFIG_SCHEMA = {}
+    # 配置参数定义
+    CONFIG_PARAMS = {
+        "field_1": {"type":"string","required":True,"description":"test"}
+    }
     
     async def run(self, context):
         """节点执行逻辑"""
@@ -49,7 +55,7 @@ class TestNode1Node(Node):
         
         # 获取配置参数
         config = self.config or {}
-
+        field_1 = config.get("field_1", None)
         
         # TODO: 实现你的业务逻辑
         # 示例：

@@ -4,11 +4,99 @@
 """
 import json
 from typing import Dict, Any, List
-from jinja2 import Template
+from jinja2 import Template, Environment
 from pathlib import Path
 
 from ..config import config
 
+def _convert_js_json_booleans_to_python(src: str) -> str:
+    """
+    将源代码中非字符串字面量里的 json/js 布尔 true/false 转为 Python True/False。
+    算法：逐字符扫描，跟踪是否在字符串（支持单引号/双引号，处理转义）。
+    仅在不在字符串中并且前后是非标识符边界时替换单词 true/false。
+
+    这是一个防卫性转换：如果源码已经是 Python 风格（True/False）或者
+    包含字符串 "true"/"false"，则不会误替换字符串内容。
+    """
+    if not src or ('true' not in src and 'false' not in src):
+        return src
+
+    def is_ident_char(c: str) -> bool:
+        return (c.isalnum() or c == '_')
+
+    i = 0
+    n = len(src)
+    out_chars = []
+    in_string = False
+    string_char = ''
+    escaped = False
+
+    while i < n:
+        ch = src[i]
+
+        # 处理字符串状态与转义
+        if in_string:
+            out_chars.append(ch)
+            if escaped:
+                escaped = False
+            elif ch == '\\':
+                escaped = True
+            elif ch == string_char:
+                in_string = False
+                string_char = ''
+            i += 1
+            continue
+        else:
+            # 可能进入字符串
+            if ch == '"' or ch == "'":
+                in_string = True
+                string_char = ch
+                out_chars.append(ch)
+                i += 1
+                continue
+
+            # 尝试匹配 true 或 false（完整单词）
+            # 先处理 "true"
+            if src.startswith('true', i):
+                prev_char = src[i-1] if i-1 >= 0 else ''
+                next_char = src[i+4] if i+4 < n else ''
+                if (not prev_char or not is_ident_char(prev_char)) and (not next_char or not is_ident_char(next_char)):
+                    out_chars.append('True')
+                    i += 4
+                    continue
+
+            # 处理 "false"
+            if src.startswith('false', i):
+                prev_char = src[i-1] if i-1 >= 0 else ''
+                next_char = src[i+5] if i+5 < n else ''
+                if (not prev_char or not is_ident_char(prev_char)) and (not next_char or not is_ident_char(next_char)):
+                    out_chars.append('False')
+                    i += 5
+                    continue
+
+            # 默认逐字符复制
+            out_chars.append(ch)
+            i += 1
+
+    return ''.join(out_chars)
+
+def to_python_literal(value: Any) -> str:
+    """
+    接收一个可能是 JSON 风格字符串的 value，
+    自动把 true/false/null 转成 Python 风格 True/False/None，
+    并安全返回 Python 字面量字符串。
+    """
+    # 如果 value 本来就是 Python 对象，直接 repr
+    if not isinstance(value, str):
+        return repr(value)
+
+    try:
+        # 尝试把 JSON 字符串解析为 Python 对象
+        py = json.loads(value)
+        return repr(py)
+    except Exception:
+        # 解析失败说明不是纯 JSON，直接返回原字符串
+        return value
 
 def get_template_file() -> Path:
     """获取模板文件路径"""
@@ -74,7 +162,8 @@ class {{class_name}}(Node):
 {% for param in inputs %}
         "{{param.name}}": ParameterSchema(
             is_streaming={% if param.is_streaming %}True{% else %}False{% endif %},
-            schema={{param.schema|tojson if param.schema else '{}'}}
+            schema={{param.schema|to_python if param.schema else '{}'}},
+            description={{param.description|to_python if param.description else '""'}}
         ){% if not loop.last %},{% endif %}
 {% endfor %}
     }
@@ -84,13 +173,22 @@ class {{class_name}}(Node):
 {% for param in outputs %}
         "{{param.name}}": ParameterSchema(
             is_streaming={% if param.is_streaming %}True{% else %}False{% endif %},
-            schema={{param.schema|tojson if param.schema else '{}'}}
+            schema={{param.schema|to_python if param.schema else '{}'}},
+            description={{param.description|to_python if param.description else '""'}}
         ){% if not loop.last %},{% endif %}
 {% endfor %}
     }
     
-    # 配置Schema
-    CONFIG_SCHEMA = {{config_schema|tojson}}
+    # 配置参数定义（使用 FieldSchema 格式）
+{% if config_params %}
+    CONFIG_PARAMS = {
+{% for param in config_params %}
+        "{{param.name}}": {% if param.format == 'simple' %}{{param.field_def|to_python}}{% else %}{{param.field_def|to_python}}{% endif %}{% if not loop.last %},{% endif %}
+{% endfor %}
+    }
+{% else %}
+    CONFIG_PARAMS = {}
+{% endif %}
     
     async def run(self, context):
         """节点执行逻辑"""
@@ -101,9 +199,11 @@ class {{class_name}}(Node):
         
         # 获取配置参数
         config = self.config or {}
-{% for key in config_schema.keys() %}
-        {{key}} = config.get("{{key}}", {{config_schema[key].get('default', 'None')|tojson}})
+{% if config_params %}
+{% for param in config_params %}
+        {{param.name}} = config.get("{{param.name}}", None)
 {% endfor %}
+{% endif %}
         
         # TODO: 实现你的业务逻辑
         # 示例：
@@ -122,7 +222,18 @@ def to_python_class_name(node_id: str) -> str:
     """将节点ID转换为Python类名"""
     # 将下划线分隔的单词转换为驼峰命名
     parts = node_id.split('_')
-    return ''.join(word.capitalize() for word in parts) + 'Node'
+    class_name = ''.join(word.capitalize() for word in parts)
+    
+    # 如果节点ID已经以 _node 结尾，类名应该以 Node 结尾，不需要再加 Node
+    if node_id.endswith('_node'):
+        # 如果类名已经以 Node 结尾，就不再加
+        if not class_name.endswith('Node'):
+            class_name += 'Node'
+    else:
+        # 如果节点ID不以 _node 结尾，添加 Node 后缀
+        class_name += 'Node'
+    
+    return class_name
 
 
 def generate_node_code(
@@ -151,7 +262,10 @@ def generate_node_code(
         config_schema: 配置Schema
     """
     template_str = load_template()
-    template = Template(template_str)
+    # 创建 Jinja2 环境并添加自定义过滤器
+    env = Environment()
+    env.filters['to_python'] = to_python_literal
+    template = env.from_string(template_str)
     
     class_name = to_python_class_name(node_id)
     
@@ -168,7 +282,8 @@ def generate_node_code(
         processed_inputs.append({
             'name': param.get('name', ''),
             'is_streaming': param.get('isStreaming', False),
-            'schema': schema
+            'schema': schema,
+            'description': param.get('description', '')
         })
     
     processed_outputs = []
@@ -176,8 +291,37 @@ def generate_node_code(
         processed_outputs.append({
             'name': param.get('name', ''),
             'is_streaming': param.get('isStreaming', False),
-            'schema': param.get('schema', {})
+            'schema': param.get('schema', {}),
+            'description': param.get('description', '')
         })
+    
+    # 处理配置参数（使用 FieldSchema 格式）
+    processed_config_params = None
+    if isinstance(config_schema, dict) and config_schema:
+        # FieldSchema 格式：可以是字符串（简单格式）或字典（详细格式）
+        processed_config_params = []
+        for param_name, field_def in config_schema.items():
+            if isinstance(field_def, str):
+                # 简单格式: "string"
+                processed_config_params.append({
+                    'name': param_name,
+                    'field_def': field_def,  # 直接是字符串
+                    'format': 'simple'
+                })
+            elif isinstance(field_def, dict):
+                # 详细格式: {"type": "string", "required": True, "description": "...", "default": "..."}
+                processed_config_params.append({
+                    'name': param_name,
+                    'field_def': field_def,  # 是字典
+                    'format': 'detailed'
+                })
+            else:
+                # 默认简单格式
+                processed_config_params.append({
+                    'name': param_name,
+                    'field_def': 'any',
+                    'format': 'simple'
+                })
     
     template_data = {
         'node_id': node_id,
@@ -189,7 +333,7 @@ def generate_node_code(
         'color': color,
         'inputs': processed_inputs,
         'outputs': processed_outputs,
-        'config_schema': config_schema or {}
+        'config_params': processed_config_params
     }
     
     # 渲染模板

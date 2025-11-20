@@ -27,12 +27,31 @@ import './NodeCreator.css'
 const { TextArea } = Input
 const { Option } = Select
 
+// Schema 字段定义（用于 UI 编辑）
+interface SchemaFieldItem {
+  fieldName: string
+  type: string
+  required: boolean
+  description: string
+  default?: any
+}
+
 interface InputOutputItem {
   key: string
   name: string
   isStreaming: boolean
-  schema: Record<string, string> // 字段名 -> 类型
+  schemaType: 'simple' | 'struct' // schema 类型：简单类型字符串或结构体字典
+  simpleType?: string // 简单类型时的类型字符串
+  schemaFields?: SchemaFieldItem[] // 结构体时的字段列表
+  description?: string // 参数说明
 }
+
+// 配置参数直接就是字段列表（使用 FieldSchema 格式）
+// CONFIG_PARAMS 是一个字典，键是字段名，值是 FieldSchemaDef
+// FieldSchemaDef 可以是：
+// - 简单格式: "string" - 只有类型
+// - 详细格式: {"type": "string", "required": True, "description": "...", "default": "..."}
+// 不再需要 ConfigParamItem，直接使用 SchemaFieldItem[] 数组
 
 interface NodeCreatorModalProps {
   visible: boolean
@@ -56,6 +75,7 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
   const [activeTab, setActiveTab] = useState('basic')
   const [inputs, setInputs] = useState<InputOutputItem[]>([])
   const [outputs, setOutputs] = useState<InputOutputItem[]>([])
+  const [configParams, setConfigParams] = useState<SchemaFieldItem[]>([])
   const [pythonCode, setPythonCode] = useState('')
   const [originalPythonCode, setOriginalPythonCode] = useState('') // 保存加载时的原始代码
   const [showCodeEditor, setShowCodeEditor] = useState(false)
@@ -66,7 +86,7 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
     category: string
     executionMode: string
     color: string
-    configSchema: Record<string, any>
+    configParams?: Record<string, any>
     inputs: Record<string, any>
     outputs: Record<string, any>
   } | null>(null)
@@ -99,6 +119,7 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
         })
         setInputs([])
         setOutputs([])
+        setConfigParams([])
         setPythonCode('')
         setOriginalPythonCode('')
         setCodeManuallyModified(false)
@@ -124,30 +145,43 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
         category: nodeData.category,
         executionMode: nodeData.executionMode,
         color: nodeData.color,
-        configSchema: JSON.stringify(nodeData.configSchema || {}, null, 2),
       })
 
       // 转换字典格式为数组格式用于UI显示
       const inputItems: InputOutputItem[] = nodeData.inputs 
-        ? Object.entries(nodeData.inputs).map(([name, param]: [string, any]) => ({
-            key: name,
-            name,
-            isStreaming: param.isStreaming || false,
-            schema: param.schema || {},
-          }))
+        ? Object.entries(nodeData.inputs).map(([name, param]: [string, any]) => {
+            const schemaUI = parseSchemaToUI(param.schema || {})
+            return {
+              key: name,
+              name,
+              isStreaming: param.isStreaming || false,
+              ...schemaUI,
+              description: param.description || '',
+            }
+          })
         : []
       
       const outputItems: InputOutputItem[] = nodeData.outputs
-        ? Object.entries(nodeData.outputs).map(([name, param]: [string, any]) => ({
-            key: name,
-            name,
-            isStreaming: param.isStreaming || false,
-            schema: param.schema || {},
-          }))
+        ? Object.entries(nodeData.outputs).map(([name, param]: [string, any]) => {
+            const schemaUI = parseSchemaToUI(param.schema || {})
+            return {
+              key: name,
+              name,
+              isStreaming: param.isStreaming || false,
+              ...schemaUI,
+              description: param.description || '',
+            }
+          })
+        : []
+
+      // 转换配置参数（使用 FieldSchema 格式，直接是字段列表）
+      const configFields: SchemaFieldItem[] = nodeData.configParams
+        ? parseConfigParamsToUI(nodeData.configParams)
         : []
 
       setInputs(inputItems)
       setOutputs(outputItems)
+      setConfigParams(configFields)
       setPythonCode(codeData.code)
       setOriginalPythonCode(codeData.code) // 保存原始代码
       setCodeManuallyModified(false) // 重置修改标记
@@ -160,7 +194,7 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
         category: nodeData.category,
         executionMode: nodeData.executionMode,
         color: nodeData.color || '#1890ff',
-        configSchema: nodeData.configSchema || {},
+        configParams: nodeData.configParams || {},
         inputs: nodeData.inputs || {},
         outputs: nodeData.outputs || {},
       })
@@ -191,31 +225,44 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
           category: nodeType.category,
           executionMode: nodeType.executionMode,
           color: nodeType.color || '#1890ff',
-          configSchema: JSON.stringify(nodeType.configSchema || {}, null, 2),
         })
       }
 
       // 转换字典格式为数组格式用于UI显示
       const inputItems: InputOutputItem[] = schema.INPUT_PARAMS
-        ? Object.entries(schema.INPUT_PARAMS).map(([name, param]: [string, any]) => ({
-            key: name,
-            name,
-            isStreaming: param.isStreaming || false,
-            schema: param.schema || {},
-          }))
+        ? Object.entries(schema.INPUT_PARAMS).map(([name, param]: [string, any]) => {
+            const schemaUI = parseSchemaToUI(param.schema || {})
+            return {
+              key: name,
+              name,
+              isStreaming: param.isStreaming || false,
+              ...schemaUI,
+              description: param.description || '',
+            }
+          })
         : []
       
       const outputItems: InputOutputItem[] = schema.OUTPUT_PARAMS
-        ? Object.entries(schema.OUTPUT_PARAMS).map(([name, param]: [string, any]) => ({
-            key: name,
-            name,
-            isStreaming: param.isStreaming || false,
-            schema: param.schema || {},
-          }))
+        ? Object.entries(schema.OUTPUT_PARAMS).map(([name, param]: [string, any]) => {
+            const schemaUI = parseSchemaToUI(param.schema || {})
+            return {
+              key: name,
+              name,
+              isStreaming: param.isStreaming || false,
+              ...schemaUI,
+              description: param.description || '',
+            }
+          })
+        : []
+
+      // 转换配置参数（使用 FieldSchema 格式，直接是字段列表）
+      const configFields: SchemaFieldItem[] = schema.CONFIG_PARAMS
+        ? parseConfigParamsToUI(schema.CONFIG_PARAMS)
         : []
 
       setInputs(inputItems)
       setOutputs(outputItems)
+      setConfigParams(configFields)
       setPythonCode('') // 内置节点不显示代码
       setOriginalPythonCode('')
       setCodeManuallyModified(false)
@@ -236,7 +283,9 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
         key: newKey,
         name: '',
         isStreaming: false,
-        schema: {},
+        schemaType: 'simple',
+        simpleType: 'any',
+        description: '',
       },
     ])
   }
@@ -251,50 +300,90 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
     ))
   }
 
+  // 切换 schema 类型（简单类型 <-> 结构体）
+  const handleToggleSchemaType = (key: string, type: 'input' | 'output' | 'config') => {
+    const updateItem = (item: InputOutputItem) => {
+      if (item.key === key) {
+        if (item.schemaType === 'simple') {
+          // 从简单类型切换到结构体
+          return {
+            ...item,
+            schemaType: 'struct' as const,
+            simpleType: undefined,
+            schemaFields: [],
+          }
+        } else {
+          // 从结构体切换到简单类型
+          return {
+            ...item,
+            schemaType: 'simple' as const,
+            simpleType: 'any',
+            schemaFields: undefined,
+          }
+        }
+      }
+      return item
+    }
+
+    if (type === 'input') {
+      setInputs(inputs.map(updateItem))
+    } else if (type === 'output') {
+      setOutputs(outputs.map(updateItem))
+    } else {
+      setConfigParams(configParams.map(updateItem))
+    }
+  }
+
   const handleAddInputSchemaField = (inputKey: string) => {
     setInputs(inputs.map((item) => {
       if (item.key === inputKey) {
-        const newFieldName = `field_${Object.keys(item.schema).length + 1}`
+        if (item.schemaType !== 'struct') {
+          // 如果不是结构体，先切换为结构体
+          return {
+            ...item,
+            schemaType: 'struct' as const,
+            simpleType: undefined,
+            schemaFields: [],
+          }
+        }
+        const newFieldName = `field_${(item.schemaFields || []).length + 1}`
         return {
           ...item,
-          schema: { ...item.schema, [newFieldName]: 'string' },
+          schemaFields: [
+            ...(item.schemaFields || []),
+            {
+              fieldName: newFieldName,
+              type: 'string',
+              required: false,
+              description: '',
+            },
+          ],
         }
       }
       return item
     }))
   }
 
-  const handleRemoveInputSchemaField = (inputKey: string, fieldName: string) => {
+  const handleRemoveInputSchemaField = (inputKey: string, fieldIndex: number) => {
     setInputs(inputs.map((item) => {
-      if (item.key === inputKey) {
-        const newSchema = { ...item.schema }
-        delete newSchema[fieldName]
-        return { ...item, schema: newSchema }
+      if (item.key === inputKey && item.schemaFields) {
+        return {
+          ...item,
+          schemaFields: item.schemaFields.filter((_, idx) => idx !== fieldIndex),
+        }
       }
       return item
     }))
   }
 
-  const handleInputSchemaFieldChange = (inputKey: string, fieldName: string, field: 'name' | 'type', value: string) => {
+  const handleInputSchemaFieldChange = (inputKey: string, fieldIndex: number, field: keyof SchemaFieldItem, value: any) => {
     setInputs(inputs.map((item) => {
-      if (item.key === inputKey) {
-        if (field === 'name') {
-          // 重命名字段
-          const newSchema: Record<string, string> = {}
-          Object.entries(item.schema).forEach(([k, v]) => {
-            if (k === fieldName) {
-              newSchema[value] = v
-            } else {
-              newSchema[k] = v
-            }
-          })
-          return { ...item, schema: newSchema }
-        } else {
-          // 修改类型
-          return {
-            ...item,
-            schema: { ...item.schema, [fieldName]: value },
-          }
+      if (item.key === inputKey && item.schemaFields) {
+        return {
+          ...item,
+          schemaFields: item.schemaFields.map((f, idx) => 
+            idx === fieldIndex ? { ...f, [field]: value } : f
+          ),
         }
       }
       return item
@@ -309,7 +398,9 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
         key: newKey,
         name: '',
         isStreaming: false,
-        schema: {},
+        schemaType: 'simple',
+        simpleType: 'any',
+        description: '',
       },
     ])
   }
@@ -327,85 +418,282 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
   const handleAddOutputSchemaField = (outputKey: string) => {
     setOutputs(outputs.map((item) => {
       if (item.key === outputKey) {
-        const newFieldName = `field_${Object.keys(item.schema).length + 1}`
-        return {
-          ...item,
-          schema: { ...item.schema, [newFieldName]: 'string' },
-        }
-      }
-      return item
-    }))
-  }
-
-  const handleRemoveOutputSchemaField = (outputKey: string, fieldName: string) => {
-    setOutputs(outputs.map((item) => {
-      if (item.key === outputKey) {
-        const newSchema = { ...item.schema }
-        delete newSchema[fieldName]
-        return { ...item, schema: newSchema }
-      }
-      return item
-    }))
-  }
-
-  const handleOutputSchemaFieldChange = (outputKey: string, fieldName: string, field: 'name' | 'type', value: string) => {
-    setOutputs(outputs.map((item) => {
-      if (item.key === outputKey) {
-        if (field === 'name') {
-          // 重命名字段
-          const newSchema: Record<string, string> = {}
-          Object.entries(item.schema).forEach(([k, v]) => {
-            if (k === fieldName) {
-              newSchema[value] = v
-            } else {
-              newSchema[k] = v
-            }
-          })
-          return { ...item, schema: newSchema }
-        } else {
-          // 修改类型
+        if (item.schemaType !== 'struct') {
           return {
             ...item,
-            schema: { ...item.schema, [fieldName]: value },
+            schemaType: 'struct' as const,
+            simpleType: undefined,
+            schemaFields: [],
           }
+        }
+        const newFieldName = `field_${(item.schemaFields || []).length + 1}`
+        return {
+          ...item,
+          schemaFields: [
+            ...(item.schemaFields || []),
+            {
+              fieldName: newFieldName,
+              type: 'string',
+              required: false,
+              description: '',
+            },
+          ],
         }
       }
       return item
     }))
   }
 
-  // 将数组格式转换为字典格式
+  const handleRemoveOutputSchemaField = (outputKey: string, fieldIndex: number) => {
+    setOutputs(outputs.map((item) => {
+      if (item.key === outputKey && item.schemaFields) {
+        return {
+          ...item,
+          schemaFields: item.schemaFields.filter((_, idx) => idx !== fieldIndex),
+        }
+      }
+      return item
+    }))
+  }
+
+  const handleOutputSchemaFieldChange = (outputKey: string, fieldIndex: number, field: keyof SchemaFieldItem, value: any) => {
+    setOutputs(outputs.map((item) => {
+      if (item.key === outputKey && item.schemaFields) {
+        return {
+          ...item,
+          schemaFields: item.schemaFields.map((f, idx) => 
+            idx === fieldIndex ? { ...f, [field]: value } : f
+          ),
+        }
+      }
+      return item
+    }))
+  }
+
+  // 配置参数处理函数（直接操作字段列表）
+  const handleAddConfigParamField = () => {
+    const newFieldName = `field_${configParams.length + 1}`
+    setConfigParams([
+      ...configParams,
+      {
+        fieldName: newFieldName,
+        type: 'string',
+        required: false,
+        description: '',
+      },
+    ])
+  }
+
+  const handleRemoveConfigParamField = (fieldIndex: number) => {
+    setConfigParams(configParams.filter((_, idx) => idx !== fieldIndex))
+  }
+
+  const handleConfigParamFieldChange = (fieldIndex: number, field: keyof SchemaFieldItem, value: any) => {
+    setConfigParams(configParams.map((f, idx) => 
+      idx === fieldIndex ? { ...f, [field]: value } : f
+    ))
+  }
+
+  // 将配置参数的 FieldSchema 转换为 UI 格式
+  // CONFIG_PARAMS 是一个字典，键是字段名，值是 FieldSchemaDef
+  const parseConfigParamsToUI = (configParams: Record<string, any>): SchemaFieldItem[] => {
+    if (!configParams || Object.keys(configParams).length === 0) {
+      return []
+    }
+    
+    // 直接转换为字段列表
+    return Object.entries(configParams).map(([fieldName, fieldDef]) => {
+      if (typeof fieldDef === 'string') {
+        // 简单格式: "string"
+        return {
+          fieldName,
+          type: fieldDef,
+          required: false,
+          description: '',
+        }
+      } else if (typeof fieldDef === 'object' && fieldDef !== null) {
+        // 详细格式: {"type": "string", "required": True, "description": "...", "default": "..."}
+        return {
+          fieldName,
+          type: fieldDef.type || 'any',
+          required: fieldDef.required || false,
+          description: fieldDef.description || '',
+          default: fieldDef.default,
+        }
+      } else {
+        return {
+          fieldName,
+          type: 'any',
+          required: false,
+          description: '',
+        }
+      }
+    })
+  }
+
+  // 将配置参数的 UI 格式转换为 FieldSchema 字典
+  // 返回一个字典，键是字段名，值是 FieldSchemaDef
+  const convertConfigParamsUIToSchema = (fields: SchemaFieldItem[]): Record<string, any> => {
+    const result: Record<string, any> = {}
+    
+    // 遍历每个字段
+    fields.forEach((field) => {
+      if (field.fieldName) {
+        // 检查是否有详细格式的属性（required、description、default）
+        const hasDetailedFormat = field.required || field.description || field.default !== undefined
+        
+        if (hasDetailedFormat) {
+          // 使用详细格式
+          result[field.fieldName] = {
+            type: field.type || 'any',
+          }
+          if (field.required) {
+            result[field.fieldName].required = true
+          }
+          if (field.description) {
+            result[field.fieldName].description = field.description
+          }
+          if (field.default !== undefined && field.default !== '') {
+            result[field.fieldName].default = field.default
+          }
+        } else {
+          // 使用简单格式：只有类型字符串
+          result[field.fieldName] = field.type || 'any'
+        }
+      }
+    })
+    
+    return result
+  }
+
+  // 将 schema 转换为 UI 格式（用于输入/输出参数）
+  const parseSchemaToUI = (schema: any): { schemaType: 'simple' | 'struct', simpleType?: string, schemaFields?: SchemaFieldItem[] } => {
+    if (typeof schema === 'string') {
+      // 简单类型
+      return {
+        schemaType: 'simple',
+        simpleType: schema,
+      }
+    } else if (typeof schema === 'object' && schema !== null) {
+      // 结构体
+      const fields: SchemaFieldItem[] = Object.entries(schema).map(([fieldName, fieldDef]: [string, any]) => {
+        if (typeof fieldDef === 'string') {
+          // 简单格式: {"field_name": "type"}
+          return {
+            fieldName,
+            type: fieldDef,
+            required: false,
+            description: '',
+          }
+        } else if (typeof fieldDef === 'object' && fieldDef !== null) {
+          // 详细格式: {"field_name": {"type": "string", "required": true, ...}}
+          return {
+            fieldName,
+            type: fieldDef.type || 'any',
+            required: fieldDef.required || false,
+            description: fieldDef.description || '',
+            default: fieldDef.default,
+          }
+        } else {
+          return {
+            fieldName,
+            type: 'any',
+            required: false,
+            description: '',
+          }
+        }
+      })
+      return {
+        schemaType: 'struct',
+        schemaFields: fields,
+      }
+    } else {
+      // 默认空结构体
+      return {
+        schemaType: 'struct',
+        schemaFields: [],
+      }
+    }
+  }
+
+  // 将 UI 格式转换为 schema
+  const convertUIToSchema = (item: InputOutputItem): any => {
+    if (item.schemaType === 'simple') {
+      // 简单类型：返回字符串
+      return item.simpleType || 'any'
+    } else {
+      // 结构体：检查是否使用详细格式
+      if (!item.schemaFields || item.schemaFields.length === 0) {
+        return {}
+      }
+      
+      // 检查是否有字段使用了详细格式的属性（required、description、default）
+      const hasDetailedFormat = item.schemaFields.some(
+        field => field.required || field.description || field.default !== undefined
+      )
+      
+      if (hasDetailedFormat) {
+        // 使用详细格式
+        const schema: Record<string, any> = {}
+        item.schemaFields.forEach(field => {
+          if (field.fieldName) {
+            schema[field.fieldName] = {
+              type: field.type,
+            }
+            if (field.required) {
+              schema[field.fieldName].required = true
+            }
+            if (field.description) {
+              schema[field.fieldName].description = field.description
+            }
+            if (field.default !== undefined && field.default !== '') {
+              schema[field.fieldName].default = field.default
+            }
+          }
+        })
+        return schema
+      } else {
+        // 使用简单格式
+        const schema: Record<string, string> = {}
+        item.schemaFields.forEach(field => {
+          if (field.fieldName) {
+            schema[field.fieldName] = field.type
+          }
+        })
+        return schema
+      }
+    }
+  }
+
+  // 将数组格式转换为字典格式（输入/输出参数）
   const convertToDict = (items: InputOutputItem[]): Record<string, ParameterSchema> => {
     const result: Record<string, ParameterSchema> = {}
     items.forEach((item) => {
       if (item.name) {
         result[item.name] = {
           isStreaming: item.isStreaming,
-          schema: item.schema,
+          schema: convertUIToSchema(item),
+          description: item.description || '',
         }
       }
     })
     return result
   }
 
+  // 将配置参数数组转换为字典格式（使用 FieldSchema 格式）
+  // 返回一个字典，键是字段名，值是 FieldSchemaDef
+  const convertConfigParamsToDict = (fields: SchemaFieldItem[]): Record<string, any> => {
+    return convertConfigParamsUIToSchema(fields)
+  }
+
   const generateCode = async () => {
     try {
       const values = await form.validateFields()
-      let configSchema = {}
-      try {
-        if (values.configSchema) {
-          configSchema = typeof values.configSchema === 'string' 
-            ? JSON.parse(values.configSchema) 
-            : values.configSchema
-        }
-      } catch (e) {
-        message.error('配置Schema格式错误，请检查JSON格式')
-        return
-      }
       
-      // 验证输入输出名称
+      // 验证输入输出配置参数名称
       const inputNames = inputs.map((i) => i.name).filter((n) => n)
       const outputNames = outputs.map((o) => o.name).filter((n) => n)
+      const configNames = configParams.map((c) => c.name).filter((n) => n)
       
       if (inputNames.length !== new Set(inputNames).size) {
         message.error('输入名称不能重复')
@@ -415,9 +703,14 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
         message.error('输出名称不能重复')
         return
       }
+      if (configNames.length !== new Set(configNames).size) {
+        message.error('配置参数名称不能重复')
+        return
+      }
       
       const inputsDict = convertToDict(inputs)
       const outputsDict = convertToDict(outputs)
+      const configParamsDict = convertConfigParamsToDict(configParams)
       
       const code = nodeGenerator.generateNodeCode({
         nodeId: values.nodeId,
@@ -428,7 +721,7 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
         color: values.color,
         inputs: inputsDict,
         outputs: outputsDict,
-        configSchema,
+        configParams: configParamsDict,
       })
       setPythonCode(code)
       // 如果是编辑模式，检查代码是否被手动修改
@@ -451,22 +744,11 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
     try {
       setLoading(true)
       const values = await form.validateFields()
-      
-      let configSchema = {}
-      try {
-        if (values.configSchema) {
-          configSchema = typeof values.configSchema === 'string' 
-            ? JSON.parse(values.configSchema) 
-            : values.configSchema
-        }
-      } catch (e) {
-        message.error('配置Schema格式错误，请检查JSON格式')
-        return
-      }
 
-      // 验证输入输出名称
+      // 验证输入输出配置参数名称
       const inputNames = inputs.map((i) => i.name).filter((n) => n)
       const outputNames = outputs.map((o) => o.name).filter((n) => n)
+      const configNames = configParams.map((c) => c.name).filter((n) => n)
       
       if (inputNames.length !== new Set(inputNames).size) {
         message.error('输入管理名称不能重复')
@@ -476,9 +758,14 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
         message.error('输出管理名称不能重复')
         return
       }
+      if (configNames.length !== new Set(configNames).size) {
+        message.error('配置参数名称不能重复')
+        return
+      }
 
       const inputsDict = convertToDict(inputs)
       const outputsDict = convertToDict(outputs)
+      const configParamsDict = convertConfigParamsToDict(configParams)
 
       if (editingNodeId) {
         // 检查哪些字段发生了变化
@@ -487,14 +774,14 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
         const hasCategoryChange = originalData && originalData.category !== values.category
         const hasExecutionModeChange = originalData && originalData.executionMode !== values.executionMode
         const hasColorChange = originalData && originalData.color !== (values.color || '#1890ff')
-        const hasConfigSchemaChange = originalData && JSON.stringify(originalData.configSchema) !== JSON.stringify(configSchema)
+        const hasConfigParamsChange = originalData && JSON.stringify(originalData.configParams) !== JSON.stringify(configParamsDict)
         const hasInputsChange = originalData && JSON.stringify(originalData.inputs) !== JSON.stringify(inputsDict)
         const hasOutputsChange = originalData && JSON.stringify(originalData.outputs) !== JSON.stringify(outputsDict)
         const hasCodeChange = codeManuallyModified || (showCodeEditor && pythonCode !== originalPythonCode)
         
-        // 如果只有参数（inputs/outputs）变化，且代码没有被手动修改，使用参数更新接口
+        // 如果只有参数（inputs/outputs/configParams）变化，且代码没有被手动修改，使用参数更新接口
         const onlyParametersChanged = !hasNameChange && !hasDescriptionChange && !hasCategoryChange && 
-                                     !hasExecutionModeChange && !hasColorChange && !hasConfigSchemaChange &&
+                                     !hasExecutionModeChange && !hasColorChange && !hasConfigParamsChange &&
                                      !hasCodeChange && (hasInputsChange || hasOutputsChange)
         
         if (onlyParametersChanged) {
@@ -509,6 +796,7 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
           updateNodeTypeInstances(editingNodeId, {
             inputParams: inputsDict,
             outputParams: outputsDict,
+            configParams: configParamsDict,
           })
           const { edges: edgesAfter } = useWorkflowStore.getState()
           
@@ -546,7 +834,7 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
                 color: values.color,
                 inputs: inputsDict,
                 outputs: outputsDict,
-                configSchema,
+                configParams: configParamsDict,
               })
               finalPythonCode = generatedCode
               console.log('代码未被手动修改，使用新生成的代码')
@@ -562,7 +850,7 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
               color: values.color,
               inputs: inputsDict,
               outputs: outputsDict,
-              configSchema,
+              configParams: configParamsDict,
             })
             finalPythonCode = generatedCode
             console.log('没有显示代码编辑器，生成新代码')
@@ -577,7 +865,7 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
             color: values.color,
             inputs: inputsDict,
             outputs: outputsDict,
-            configSchema,
+            configParams: configParamsDict,
             pythonCode: finalPythonCode,
           }
           
@@ -590,6 +878,7 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
             color: values.color,
             inputParams: inputsDict,
             outputParams: outputsDict,
+            configParams: configParamsDict,
           })
           const { edges: edgesAfter } = useWorkflowStore.getState()
           
@@ -629,7 +918,7 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
           color: values.color,
           inputs: inputsDict,
           outputs: outputsDict,
-          configSchema,
+          configParams: configParamsDict,
           pythonCode: finalPythonCode,
         }
         
@@ -647,108 +936,199 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
     }
   }
 
-  // 渲染输入/输出的Schema字段表格
-  const renderSchemaFields = (
+  // 渲染 Schema 配置（支持简单类型和结构体）
+  const renderSchemaConfig = (
     item: InputOutputItem,
+    type: 'input' | 'output' | 'config',
     onAddField: (key: string) => void,
-    onRemoveField: (key: string, fieldName: string) => void,
-    onFieldChange: (key: string, fieldName: string, field: 'name' | 'type', value: string) => void
+    onRemoveField: (key: string, fieldIndex: number) => void,
+    onFieldChange: (key: string, fieldIndex: number, field: keyof SchemaFieldItem, value: any) => void
   ) => {
-    const schemaFields = Object.entries(item.schema)
-    
     return (
       <div style={{ marginTop: 8 }}>
-        <div style={{ marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span style={{ fontSize: 12, color: 'var(--theme-textSecondary, #595959)' }}>Schema字段 ({schemaFields.length})</span>
-          {!readOnly && (
-            <Button
-              type="dashed"
+        {item.schemaType === 'simple' ? (
+          // 简单类型
+          <div>
+            <div style={{ marginBottom: 8, fontSize: 12, color: 'var(--theme-textSecondary, #595959)' }}>
+              类型
+            </div>
+            <Select
               size="small"
-              icon={<PlusOutlined />}
-              onClick={() => onAddField(item.key)}
+              value={item.simpleType || 'any'}
+              onChange={(value) => {
+                if (type === 'input') {
+                  handleInputChange(item.key, 'simpleType', value)
+                } else if (type === 'output') {
+                  handleOutputChange(item.key, 'simpleType', value)
+                } else {
+                  handleConfigParamChange(item.key, 'simpleType', value)
+                }
+              }}
+              disabled={readOnly}
+              style={{ width: '100%' }}
             >
-              添加字段
-            </Button>
-          )}
-        </div>
-        {schemaFields.length === 0 ? (
-          <div style={{ padding: '8px 0', color: 'var(--theme-textTertiary, #8c8c8c)', fontSize: 12, textAlign: 'center' }}>
-            暂无字段（可选）
+              <Option value="string">string</Option>
+              <Option value="integer">integer</Option>
+              <Option value="float">float</Option>
+              <Option value="bytes">bytes</Option>
+              <Option value="boolean">boolean</Option>
+              <Option value="dict">dict</Option>
+              <Option value="list">list</Option>
+              <Option value="any">any</Option>
+            </Select>
           </div>
         ) : (
-          <Table
-            size="small"
-            dataSource={schemaFields.map(([fieldName, fieldType], idx) => ({
-              key: `${item.key}_${idx}`, // 使用索引作为稳定的key，不依赖字段名
-              fieldName,
-              fieldType,
-            }))}
-            rowKey={(record) => record.key} // 明确指定 rowKey
-            pagination={false}
-            columns={[
-              {
-                title: '字段名',
-                dataIndex: 'fieldName',
-                key: 'fieldName',
-                render: (text: string, record: any) => (
-                  <Input
-                    key={`input-${record.key}`} // 为输入框添加稳定的key，基于行的key
-                    size="small"
-                    value={text}
-                    onChange={(e) => {
-                      // text 是当前的字段名，在 onChange 时使用它作为旧字段名
-                      onFieldChange(item.key, text, 'name', e.target.value)
-                    }}
-                    disabled={readOnly}
-                    placeholder="字段名"
-                  />
-                ),
-              },
-              {
-                title: '类型',
-                dataIndex: 'fieldType',
-                key: 'fieldType',
-                render: (text: string, record: any) => {
-                  // 获取当前行的字段名（从 record.fieldName）
-                  const currentFieldName = record.fieldName
-                  return (
-                    <Select
-                      key={`select-${record.key}`} // 为选择框添加稳定的key，基于行的key
-                      size="small"
-                      value={text}
-                      onChange={(value) => {
-                        // 使用当前行的字段名来定位要更新的字段
-                        onFieldChange(item.key, currentFieldName, 'type', value)
-                      }}
-                      disabled={readOnly}
-                      style={{ width: '100%' }}
-                    >
-                      <Option value="string">string</Option>
-                      <Option value="integer">integer</Option>
-                      <Option value="float">float</Option>
-                      <Option value="boolean">boolean</Option>
-                      <Option value="object">object</Option>
-                      <Option value="array">array</Option>
-                    </Select>
-                  )
-                },
-              },
-              ...(readOnly ? [] : [{
-                title: '操作',
-                key: 'action',
-                width: 80,
-                render: (_: any, record: any) => (
-                  <Button
-                    type="link"
-                    danger
-                    size="small"
-                    icon={<DeleteOutlined />}
-                    onClick={() => onRemoveField(item.key, record.fieldName)}
-                  />
-                ),
-              }])
-            ]}
-          />
+          // 结构体
+          <div>
+            <div style={{ marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 12, color: 'var(--theme-textSecondary, #595959)' }}>
+                Schema 字段 ({(item.schemaFields || []).length})
+              </span>
+              {!readOnly && (
+                <Button
+                  type="dashed"
+                  size="small"
+                  icon={<PlusOutlined />}
+                  onClick={() => onAddField(item.key)}
+                >
+                  添加字段
+                </Button>
+              )}
+            </div>
+            {(item.schemaFields || []).length === 0 ? (
+              <div style={{ padding: '8px 0', color: 'var(--theme-textTertiary, #8c8c8c)', fontSize: 12, textAlign: 'center' }}>
+                暂无字段（可选）
+              </div>
+            ) : (
+              <Table
+                size="small"
+                dataSource={(item.schemaFields || []).map((field, idx) => ({
+                  key: `${item.key}_${idx}`,
+                  index: idx,
+                  ...field,
+                }))}
+                rowKey={(record) => record.key}
+                pagination={false}
+                columns={[
+                  {
+                    title: '字段名',
+                    dataIndex: 'fieldName',
+                    key: 'fieldName',
+                    render: (text: string, record: any) => (
+                      <Input
+                        key={`input-${record.key}`}
+                        size="small"
+                        value={text}
+                        onChange={(e) => onFieldChange(item.key, record.index, 'fieldName', e.target.value)}
+                        disabled={readOnly}
+                        placeholder="字段名"
+                        className="node-creator-schema-input"
+                      />
+                    ),
+                  },
+                  {
+                    title: '类型',
+                    dataIndex: 'type',
+                    key: 'type',
+                    render: (text: string, record: any) => (
+                      <Select
+                        key={`select-${record.key}`}
+                        size="small"
+                        value={text}
+                        onChange={(value) => onFieldChange(item.key, record.index, 'type', value)}
+                        disabled={readOnly}
+                        style={{ width: '100%' }}
+                      >
+                        <Option value="string">string</Option>
+                        <Option value="integer">integer</Option>
+                        <Option value="float">float</Option>
+                        <Option value="bytes">bytes</Option>
+                        <Option value="boolean">boolean</Option>
+                        <Option value="dict">dict</Option>
+                        <Option value="list">list</Option>
+                        <Option value="any">any</Option>
+                      </Select>
+                    ),
+                  },
+                  {
+                    title: '必传',
+                    dataIndex: 'required',
+                    key: 'required',
+                    width: 80,
+                    render: (_: any, record: any) => (
+                      <Switch
+                        key={`switch-${record.key}`}
+                        size="small"
+                        checked={record.required || false}
+                        onChange={(checked) => onFieldChange(item.key, record.index, 'required', checked)}
+                        disabled={readOnly}
+                      />
+                    ),
+                  },
+                  {
+                    title: '说明',
+                    dataIndex: 'description',
+                    key: 'description',
+                    render: (text: string, record: any) => (
+                      <Input
+                        key={`desc-${record.key}`}
+                        size="small"
+                        value={text || ''}
+                        onChange={(e) => onFieldChange(item.key, record.index, 'description', e.target.value)}
+                        disabled={readOnly}
+                        placeholder="字段说明"
+                        className="node-creator-schema-input"
+                      />
+                    ),
+                  },
+                  {
+                    title: '默认值',
+                    dataIndex: 'default',
+                    key: 'default',
+                    render: (text: any, record: any) => (
+                      <Input
+                        key={`default-${record.key}`}
+                        size="small"
+                        value={text !== undefined && text !== null ? String(text) : ''}
+                        onChange={(e) => {
+                          const value = e.target.value
+                          // 尝试解析为 JSON，如果失败则作为字符串
+                          let parsedValue: any = value
+                          if (value.trim() !== '') {
+                            try {
+                              parsedValue = JSON.parse(value)
+                            } catch {
+                              parsedValue = value
+                            }
+                          } else {
+                            parsedValue = undefined
+                          }
+                          onFieldChange(item.key, record.index, 'default', parsedValue)
+                        }}
+                        disabled={readOnly}
+                        placeholder="默认值"
+                        className="node-creator-schema-input"
+                      />
+                    ),
+                  },
+                  ...(readOnly ? [] : [{
+                    title: '操作',
+                    key: 'action',
+                    width: 80,
+                    render: (_: any, record: any) => (
+                      <Button
+                        type="link"
+                        danger
+                        size="small"
+                        icon={<DeleteOutlined />}
+                        onClick={() => onRemoveField(item.key, record.index)}
+                      />
+                    ),
+                  }])
+                ]}
+              />
+            )}
+          </div>
         )}
       </div>
     )
@@ -760,6 +1140,7 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
       open={visible}
       onCancel={onCancel}
       width={900}
+      className="node-creator-modal"
       footer={readOnly ? [
         <Button key="close" type="primary" onClick={onCancel}>
           关闭
@@ -791,19 +1172,36 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
                     { pattern: /^[a-zA-Z_][a-zA-Z0-9_]*$/, message: '节点ID只能包含字母、数字和下划线，且不能以数字开头' },
                   ]}
                 >
-                  <Input disabled={readOnly || !!editingNodeId} placeholder="例如: custom_text_process" />
+                  <Input 
+                    disabled={readOnly || !!editingNodeId} 
+                    placeholder="例如: custom_text_process"
+                    className="node-creator-input"
+                  />
                 </Form.Item>
 
                 <Form.Item name="name" label="节点名称" rules={readOnly ? [] : [{ required: true, message: '请输入节点名称' }]}>
-                  <Input disabled={readOnly} placeholder="例如: 文本处理器" />
+                  <Input 
+                    disabled={readOnly} 
+                    placeholder="例如: 文本处理器"
+                    className="node-creator-input"
+                  />
                 </Form.Item>
 
                 <Form.Item name="description" label="节点描述">
-                  <TextArea rows={3} disabled={readOnly} placeholder="描述节点的功能" />
+                  <TextArea 
+                    rows={3} 
+                    disabled={readOnly} 
+                    placeholder="描述节点的功能"
+                    className="node-creator-input"
+                  />
                 </Form.Item>
 
                 <Form.Item name="category" label="分类" rules={readOnly ? [] : [{ required: true, message: '请输入分类' }]}>
-                  <Input disabled={readOnly} placeholder="例如: 数据处理.文本 (支持点分隔符进行树状分类)" />
+                  <Input 
+                    disabled={readOnly} 
+                    placeholder="例如: 数据处理.文本 (支持点分隔符进行树状分类)"
+                    className="node-creator-input"
+                  />
                 </Form.Item>
 
                 <Form.Item
@@ -843,7 +1241,7 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
                   items={inputs.map((item) => ({
                     key: item.key,
                     label: (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
                         <Input
                           size="small"
                           value={item.name}
@@ -851,7 +1249,8 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
                           placeholder="输入名称"
                           disabled={readOnly}
                           onClick={(e) => e.stopPropagation()}
-                          style={{ width: 200 }}
+                          style={{ width: 150, flexShrink: 0 }}
+                          className="node-creator-input"
                         />
                         <div onClick={(e) => e.stopPropagation()}>
                           <Switch
@@ -860,9 +1259,36 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
                             disabled={readOnly}
                           />
                         </div>
-                        <span style={{ fontSize: 12, color: 'var(--theme-textSecondary, #595959)' }}>
+                        <span style={{ fontSize: 12, color: 'var(--theme-textSecondary, #595959)', flexShrink: 0 }}>
                           {item.isStreaming ? '流式' : '非流式'}
                         </span>
+                        {!readOnly && (
+                          <Select
+                            size="small"
+                            value={item.schemaType}
+                            onChange={(value) => handleToggleSchemaType(item.key, 'input')}
+                            onClick={(e) => e.stopPropagation()}
+                            style={{ width: 'auto', minWidth: 80, flexShrink: 0 }}
+                          >
+                            <Option value="simple">简单类型</Option>
+                            <Option value="struct">结构体</Option>
+                          </Select>
+                        )}
+                        {readOnly && (
+                          <span style={{ fontSize: 12, color: 'var(--theme-textSecondary, #595959)', flexShrink: 0 }}>
+                            {item.schemaType === 'simple' ? '简单类型' : '结构体'}
+                          </span>
+                        )}
+                        <Input
+                          size="small"
+                          value={item.description || ''}
+                          onChange={(e) => handleInputChange(item.key, 'description', e.target.value)}
+                          placeholder="参数说明（可选）"
+                          disabled={readOnly}
+                          onClick={(e) => e.stopPropagation()}
+                          style={{ flex: 1, minWidth: 0 }}
+                          className="node-creator-input"
+                        />
                         {!readOnly && (
                           <Button
                             type="link"
@@ -873,17 +1299,23 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
                               e.stopPropagation()
                               handleRemoveInput(item.key)
                             }}
+                            style={{ flexShrink: 0 }}
                           >
                             删除
                           </Button>
                         )}
                       </div>
                     ),
-                    children: renderSchemaFields(
-                      item,
-                      handleAddInputSchemaField,
-                      handleRemoveInputSchemaField,
-                      handleInputSchemaFieldChange
+                    children: (
+                      <Space direction="vertical" style={{ width: '100%' }}>
+                        {renderSchemaConfig(
+                          item,
+                          'input',
+                          handleAddInputSchemaField,
+                          handleRemoveInputSchemaField,
+                          handleInputSchemaFieldChange
+                        )}
+                      </Space>
                     ),
                   }))}
                 />
@@ -910,7 +1342,7 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
                   items={outputs.map((item) => ({
                     key: item.key,
                     label: (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
                         <Input
                           size="small"
                           value={item.name}
@@ -918,7 +1350,8 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
                           placeholder="输出名称"
                           disabled={readOnly}
                           onClick={(e) => e.stopPropagation()}
-                          style={{ width: 200 }}
+                          style={{ width: 150, flexShrink: 0 }}
+                          className="node-creator-input"
                         />
                         <div onClick={(e) => e.stopPropagation()}>
                           <Switch
@@ -927,9 +1360,36 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
                             disabled={readOnly}
                           />
                         </div>
-                        <span style={{ fontSize: 12, color: 'var(--theme-textSecondary, #595959)' }}>
+                        <span style={{ fontSize: 12, color: 'var(--theme-textSecondary, #595959)', flexShrink: 0 }}>
                           {item.isStreaming ? '流式' : '非流式'}
                         </span>
+                        {!readOnly && (
+                          <Select
+                            size="small"
+                            value={item.schemaType}
+                            onChange={(value) => handleToggleSchemaType(item.key, 'output')}
+                            onClick={(e) => e.stopPropagation()}
+                            style={{ width: 'auto', minWidth: 80, flexShrink: 0 }}
+                          >
+                            <Option value="simple">简单类型</Option>
+                            <Option value="struct">结构体</Option>
+                          </Select>
+                        )}
+                        {readOnly && (
+                          <span style={{ fontSize: 12, color: 'var(--theme-textSecondary, #595959)', flexShrink: 0 }}>
+                            {item.schemaType === 'simple' ? '简单类型' : '结构体'}
+                          </span>
+                        )}
+                        <Input
+                          size="small"
+                          value={item.description || ''}
+                          onChange={(e) => handleOutputChange(item.key, 'description', e.target.value)}
+                          placeholder="参数说明（可选）"
+                          disabled={readOnly}
+                          onClick={(e) => e.stopPropagation()}
+                          style={{ flex: 1, minWidth: 0 }}
+                          className="node-creator-input"
+                        />
                         {!readOnly && (
                           <Button
                             type="link"
@@ -940,17 +1400,23 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
                               e.stopPropagation()
                               handleRemoveOutput(item.key)
                             }}
+                            style={{ flexShrink: 0 }}
                           >
                             删除
                           </Button>
                         )}
                       </div>
                     ),
-                    children: renderSchemaFields(
-                      item,
-                      handleAddOutputSchemaField,
-                      handleRemoveOutputSchemaField,
-                      handleOutputSchemaFieldChange
+                    children: (
+                      <Space direction="vertical" style={{ width: '100%' }}>
+                        {renderSchemaConfig(
+                          item,
+                          'output',
+                          handleAddOutputSchemaField,
+                          handleRemoveOutputSchemaField,
+                          handleOutputSchemaFieldChange
+                        )}
+                      </Space>
                     ),
                   }))}
                 />
@@ -960,15 +1426,129 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
           },
           {
             key: 'config',
-            label: '配置Schema',
+            label: '配置参数',
             children: (
-              <Form.Item name="configSchema">
-                <TextArea
-                  rows={10}
-                  disabled={readOnly}
-                  placeholder='JSON格式，例如: { "operation": { "type": "string", "default": "uppercase" } }'
+            <Space direction="vertical" style={{ width: '100%' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <span style={{ fontSize: 12, color: 'var(--theme-textSecondary, #595959)' }}>
+                  Schema 字段 ({configParams.length})
+                </span>
+                {!readOnly && (
+                  <Button
+                    type="dashed"
+                    size="small"
+                    icon={<PlusOutlined />}
+                    onClick={handleAddConfigParamField}
+                  >
+                    添加字段
+                  </Button>
+                )}
+              </div>
+              {configParams.length === 0 ? (
+                <div style={{ padding: '40px 0', textAlign: 'center', color: 'var(--theme-textTertiary, #8c8c8c)' }}>
+                  暂无字段，点击上方按钮添加
+                </div>
+              ) : (
+                <Table
+                  size="small"
+                  dataSource={configParams.map((field, index) => ({ ...field, index }))}
+                  rowKey="index"
+                  pagination={false}
+                  columns={[
+                    {
+                      title: '字段名',
+                      key: 'fieldName',
+                      width: 150,
+                      render: (_: any, record: any) => (
+                        <Input
+                          value={record.fieldName}
+                          onChange={(e) => handleConfigParamFieldChange(record.index, 'fieldName', e.target.value)}
+                          placeholder="字段名"
+                          disabled={readOnly}
+                          className="node-creator-schema-input"
+                        />
+                      ),
+                    },
+                    {
+                      title: '类型',
+                      key: 'type',
+                      width: 120,
+                      render: (_: any, record: any) => (
+                        <Select
+                          value={record.type}
+                          onChange={(value) => handleConfigParamFieldChange(record.index, 'type', value)}
+                          disabled={readOnly}
+                          style={{ width: '100%' }}
+                        >
+                          <Option value="string">string</Option>
+                          <Option value="integer">integer</Option>
+                          <Option value="float">float</Option>
+                          <Option value="boolean">boolean</Option>
+                          <Option value="bytes">bytes</Option>
+                          <Option value="dict">dict</Option>
+                          <Option value="list">list</Option>
+                          <Option value="any">any</Option>
+                        </Select>
+                      ),
+                    },
+                    {
+                      title: '必传',
+                      key: 'required',
+                      width: 80,
+                      align: 'center',
+                      render: (_: any, record: any) => (
+                        <Switch
+                          checked={record.required}
+                          onChange={(checked) => handleConfigParamFieldChange(record.index, 'required', checked)}
+                          disabled={readOnly}
+                        />
+                      ),
+                    },
+                    {
+                      title: '说明',
+                      key: 'description',
+                      render: (_: any, record: any) => (
+                        <Input
+                          value={record.description || ''}
+                          onChange={(e) => handleConfigParamFieldChange(record.index, 'description', e.target.value)}
+                          placeholder="字段说明"
+                          disabled={readOnly}
+                          className="node-creator-schema-input"
+                        />
+                      ),
+                    },
+                    {
+                      title: '默认值',
+                      key: 'default',
+                      width: 200,
+                      render: (_: any, record: any) => (
+                        <Input
+                          value={record.default !== undefined ? String(record.default) : ''}
+                          onChange={(e) => handleConfigParamFieldChange(record.index, 'default', e.target.value)}
+                          placeholder="默认值"
+                          disabled={readOnly}
+                          className="node-creator-schema-input"
+                        />
+                      ),
+                    },
+                    ...(readOnly ? [] : [{
+                      title: '操作',
+                      key: 'action',
+                      width: 80,
+                      render: (_: any, record: any) => (
+                        <Button
+                          type="link"
+                          danger
+                          size="small"
+                          icon={<DeleteOutlined />}
+                          onClick={() => handleRemoveConfigParamField(record.index)}
+                        />
+                      ),
+                    }])
+                  ]}
                 />
-              </Form.Item>
+              )}
+            </Space>
             ),
           },
           ...(showCodeEditor ? [{

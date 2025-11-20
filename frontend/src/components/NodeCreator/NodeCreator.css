@@ -14,4 +14,117 @@
   }
 }
 
+/* 输入框 placeholder 颜色使用主题配置 */
+.node-creator-input .ant-input::placeholder {
+  color: var(--theme-textTertiary, #8c8c8c) !important;
+  opacity: 1 !important;
+}
+
+.node-creator-input .ant-input:disabled::placeholder {
+  color: var(--theme-textTertiary, #8c8c8c) !important;
+  opacity: 0.5 !important;
+}
+
+/* Schema 配置中的输入框 */
+.node-creator-schema-input .ant-input::placeholder {
+  color: var(--theme-textTertiary, #8c8c8c) !important;
+  opacity: 1 !important;
+}
+
+.node-creator-schema-input .ant-input:disabled::placeholder {
+  color: var(--theme-textTertiary, #8c8c8c) !important;
+  opacity: 0.5 !important;
+}
+
+/* 节点创建器中的所有输入框和文本域 */
+.node-creator-modal .ant-input::placeholder,
+.node-creator-modal .ant-input-number-input::placeholder {
+  color: var(--theme-textTertiary, #8c8c8c) !important;
+  opacity: 1 !important;
+}
+
+.node-creator-modal .ant-input:disabled::placeholder,
+.node-creator-modal .ant-input-number-input:disabled::placeholder {
+  color: var(--theme-textTertiary, #8c8c8c) !important;
+  opacity: 0.5 !important;
+}
+
+.node-creator-modal .ant-input[disabled]::placeholder {
+  color: var(--theme-textTertiary, #8c8c8c) !important;
+  opacity: 0.5 !important;
+}
+
+.node-creator-modal textarea.ant-input::placeholder {
+  color: var(--theme-textTertiary, #8c8c8c) !important;
+  opacity: 1 !important;
+}
+
+.node-creator-modal textarea.ant-input:disabled::placeholder {
+  color: var(--theme-textTertiary, #8c8c8c) !important;
+  opacity: 0.5 !important;
+}
+
+/* 禁用状态的输入框使用主题色 */
+.node-creator-modal .ant-input:disabled,
+.node-creator-modal .ant-input[disabled],
+.node-creator-modal textarea.ant-input:disabled,
+.node-creator-modal textarea.ant-input[disabled],
+.node-creator-modal .ant-input-number-input:disabled,
+.node-creator-modal .ant-input-number-input[disabled] {
+  background: var(--theme-backgroundSecondary, #fafafa) !important;
+  color: var(--theme-text, #262626) !important;
+  border-color: var(--theme-border, #d9d9d9) !important;
+  cursor: not-allowed !important;
+  opacity: 1 !important;
+}
+
+/* 节点创建器中的输入框禁用状态 */
+.node-creator-input .ant-input:disabled,
+.node-creator-input .ant-input[disabled] {
+  background: var(--theme-backgroundSecondary, #fafafa) !important;
+  color: var(--theme-text, #262626) !important;
+  border-color: var(--theme-border, #d9d9d9) !important;
+  cursor: not-allowed !important;
+  opacity: 1 !important;
+}
+
+/* Schema 配置中的输入框禁用状态 */
+.node-creator-schema-input .ant-input:disabled,
+.node-creator-schema-input .ant-input[disabled] {
+  background: var(--theme-backgroundSecondary, #fafafa) !important;
+  color: var(--theme-text, #262626) !important;
+  border-color: var(--theme-border, #d9d9d9) !important;
+  cursor: not-allowed !important;
+  opacity: 1 !important;
+}
+
+/* Select 组件禁用状态 */
+.node-creator-modal .ant-select-disabled .ant-select-selector {
+  background: var(--theme-backgroundSecondary, #fafafa) !important;
+  color: var(--theme-text, #262626) !important;
+  border-color: var(--theme-border, #d9d9d9) !important;
+  cursor: not-allowed !important;
+  opacity: 1 !important;
+}
+
+.node-creator-modal .ant-select-disabled .ant-select-selection-item {
+  color: var(--theme-text, #262626) !important;
+  opacity: 1 !important;
+}
+
+/* InputNumber 组件禁用状态 */
+.node-creator-modal .ant-input-number-disabled {
+  background: var(--theme-backgroundSecondary, #fafafa) !important;
+  color: var(--theme-text, #262626) !important;
+  border-color: var(--theme-border, #d9d9d9) !important;
+  cursor: not-allowed !important;
+  opacity: 1 !important;
+}
+
+.node-creator-modal .ant-input-number-disabled .ant-input-number-input {
+  background: var(--theme-backgroundSecondary, #fafafa) !important;
+  color: var(--theme-text, #262626) !important;
+  cursor: not-allowed !important;
+}
+
 

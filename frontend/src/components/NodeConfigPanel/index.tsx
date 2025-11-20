@@ -110,17 +110,44 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ nodeId, edgeId }) => 
   }, [edgeId, nodeId])
 
   // 检查节点是否为自定义节点，并统计实例数量，同时获取节点描述
+  // 使用 ref 跟踪上一次的节点类型，避免重复调用
+  const prevNodeTypeRef = useRef<string | null>(null)
+  const fetchingRef = useRef<boolean>(false)
+
   useEffect(() => {
     // 使用 ref 标记，避免重复调用
     let cancelled = false
+
+    // 如果节点类型没有变化，且正在获取中，则不重复调用
+    if (nodeType === prevNodeTypeRef.current && fetchingRef.current) {
+      return
+    }
 
     const checkNodeInfo = async () => {
       if (!nodeId || !nodeType) {
         setIsCustomNode(false)
         setInstanceCount(0)
         setNodeDescription('')
+        prevNodeTypeRef.current = null
+        fetchingRef.current = false
         return
       }
+
+      // 如果节点类型没有变化，且已经有描述，则不需要重新获取
+      if (nodeType === prevNodeTypeRef.current) {
+        // 只更新实例数量（因为节点可能被添加/删除）
+        const currentNodes = useWorkflowStore.getState().nodes
+        const cachedIsCustom = checkIsCustomNode(nodeType)
+        const count = currentNodes.filter((n) => (n.data?.type || n.type) === nodeType).length
+        if (!cancelled) {
+          setInstanceCount(cachedIsCustom ? count : 0)
+        }
+        return
+      }
+
+      // 更新节点类型引用
+      prevNodeTypeRef.current = nodeType
+      fetchingRef.current = true
 
       // 首先尝试从缓存中获取节点描述
       const cachedDescription = getNodeDescription(nodeType)
@@ -144,16 +171,22 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ nodeId, edgeId }) => 
         if (!cachedDescription) {
           if (cachedIsCustom) {
             // 自定义节点：先检查缓存，没有才调用API
-            const cachedCustomNodeDetails = customNodeDetails[nodeType]
+            // 使用 getState() 获取最新的缓存，而不是依赖项
+            const currentCustomNodeDetails = useNodeInfoStore.getState().customNodeDetails
+            const cachedCustomNodeDetails = currentCustomNodeDetails[nodeType]
             if (cachedCustomNodeDetails?.description) {
               if (!cancelled) {
                 setNodeDescription(cachedCustomNodeDetails.description)
+                fetchingRef.current = false
               }
             } else {
               // 缓存中没有，调用API获取
               try {
                 const customNodeInfo = await nodeApi.getCustomNode(nodeType)
-                if (cancelled) return
+                if (cancelled) {
+                  fetchingRef.current = false
+                  return
+                }
                 
                 // 更新缓存
                 setCustomNodeDetails(nodeType, customNodeInfo)
@@ -161,37 +194,50 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ nodeId, edgeId }) => 
                 if (customNodeInfo?.description && !cancelled) {
                   setNodeDescription(customNodeInfo.description)
                 }
+                fetchingRef.current = false
               } catch (error) {
                 console.warn('获取自定义节点信息失败:', error)
+                fetchingRef.current = false
               }
             }
           } else {
             // 内置节点：从节点类型列表中获取
-            if (nodeTypes.length === 0) {
+            // 使用 getState() 获取最新的节点类型列表，而不是依赖项
+            const currentNodeTypes = useNodeInfoStore.getState().nodeTypes
+            if (currentNodeTypes.length === 0) {
               // 如果节点类型列表为空，尝试加载
               try {
                 const types = await nodeApi.getNodeTypes()
-                if (cancelled) return
+                if (cancelled) {
+                  fetchingRef.current = false
+                  return
+                }
                 
                 setNodeTypes(types)
                 const foundNodeType = types.find((nt: any) => nt.id === nodeType)
                 if (!cancelled && foundNodeType?.description) {
                   setNodeDescription(foundNodeType.description)
                 }
+                fetchingRef.current = false
               } catch (error) {
                 console.warn('获取节点类型列表失败:', error)
+                fetchingRef.current = false
               }
             } else {
               // 从缓存中查找
-              const foundNodeType = nodeTypes.find((nt: any) => nt.id === nodeType)
+              const foundNodeType = currentNodeTypes.find((nt: any) => nt.id === nodeType)
               if (!cancelled && foundNodeType?.description) {
                 setNodeDescription(foundNodeType.description)
               }
+              fetchingRef.current = false
             }
           }
+        } else {
+          fetchingRef.current = false
         }
       } catch (error) {
         console.warn('检查节点信息失败:', error)
+        fetchingRef.current = false
       }
     }
 
@@ -199,8 +245,9 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ nodeId, edgeId }) => 
 
     return () => {
       cancelled = true
+      fetchingRef.current = false
     }
-  }, [nodeId, nodeType, nodeTypes, customNodeDetails, getNodeDescription, checkIsCustomNode, setCustomNodeDetails, setNodeTypes]) // 添加缓存相关的依赖
+  }, [nodeId, nodeType, getNodeDescription, checkIsCustomNode, setCustomNodeDetails, setNodeTypes]) // 移除 customNodeDetails 和 nodeTypes，使用 getState() 获取最新值
 
   useEffect(() => {
     // 判断节点是否真正变化
@@ -393,6 +440,25 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ nodeId, edgeId }) => 
                       <Tag color="default">非流式</Tag>
                     )}</td>
                 </tr>
+                {(sourceParam?.description || targetParam?.description) && (
+                  <tr style={{ borderBottom: '1px solid var(--theme-border, #e8e8e8)' }}>
+                    <td style={{ padding: '6px 8px', fontWeight: 'bold', background: 'var(--theme-backgroundSecondary, #fafafa)', borderRight: '1px solid var(--theme-border, #e8e8e8)', verticalAlign: 'top', fontSize: 12, color: 'var(--theme-text, #262626)' }}>参数说明</td>
+                    <td style={{ padding: '6px 8px', wordBreak: 'break-word', verticalAlign: 'top', fontSize: 12, color: 'var(--theme-text, #262626)' }}>
+                      {sourceParam?.description ? (
+                        <div style={{ fontSize: 11, whiteSpace: 'pre-wrap' }}>{sourceParam.description}</div>
+                      ) : (
+                        <Text type="secondary" style={{ fontSize: 12 }}>-</Text>
+                      )}
+                    </td>
+                    <td style={{ padding: '6px 8px', wordBreak: 'break-word', verticalAlign: 'top', fontSize: 12, color: 'var(--theme-text, #262626)' }}>
+                      {targetParam?.description ? (
+                        <div style={{ fontSize: 11, whiteSpace: 'pre-wrap' }}>{targetParam.description}</div>
+                      ) : (
+                        <Text type="secondary" style={{ fontSize: 12 }}>-</Text>
+                      )}
+                    </td>
+                  </tr>
+                )}
                 <tr style={{ borderBottom: '1px solid var(--theme-border, #e8e8e8)' }}>
                   <td style={{ padding: '6px 8px', fontWeight: 'bold', background: 'var(--theme-backgroundSecondary, #fafafa)', borderRight: '1px solid var(--theme-border, #e8e8e8)', verticalAlign: 'top', fontSize: 12, color: 'var(--theme-text, #262626)' }}>Schema</td>
                   <td style={{ padding: '6px 8px', wordBreak: 'break-word', verticalAlign: 'top', fontSize: 12, color: 'var(--theme-text, #262626)' }}>

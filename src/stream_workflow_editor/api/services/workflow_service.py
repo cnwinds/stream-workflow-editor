@@ -342,11 +342,14 @@ class WorkflowEngineService:
             custom_metadata = get_custom_node_metadata(node_type)
             if custom_metadata:
                 # inputs和outputs已经是字典格式了，直接使用
-                return {
+                result = {
                     "INPUT_PARAMS": custom_metadata.get("inputs", {}),
                     "OUTPUT_PARAMS": custom_metadata.get("outputs", {}),
-                    "CONFIG_SCHEMA": custom_metadata.get("configSchema", {}),
                 }
+                # 使用 CONFIG_PARAMS
+                if custom_metadata.get("configParams"):
+                    result["CONFIG_PARAMS"] = custom_metadata.get("configParams", {})
+                return result
         except Exception as e:
             logger.debug(f"从自定义节点获取schema失败 ({node_type}): {e}", exc_info=True)
         
@@ -391,21 +394,25 @@ class WorkflowEngineService:
                         for param_name, param_schema in raw_input_params.items():
                             if isinstance(param_schema, ParameterSchema):
                                 schema = getattr(param_schema, "schema", {})
-                                # 统一格式：只包含isStreaming和schema，key就是参数名
+                                # 统一格式：包含isStreaming、schema、required、description
                                 input_params[param_name] = {
                                     "isStreaming": getattr(param_schema, "is_streaming", False),
-                                    "schema": schema,  # 字段名到类型的映射
+                                    "schema": schema,  # 可以是字符串（简单类型）或字典（结构体）
+                                    "description": getattr(param_schema, "description", ""),
                                 }
                             elif isinstance(param_schema, dict):
-                                # 兼容旧格式，提取isStreaming和schema
+                                # 兼容旧格式，提取isStreaming、schema、required、description
                                 input_params[param_name] = {
                                     "isStreaming": param_schema.get("is_streaming", False) or param_schema.get("isStreaming", False),
                                     "schema": param_schema.get("schema", {}),
+                                    "description": param_schema.get("description", ""),
                                 }
                             else:
                                 input_params[param_name] = {
                                     "isStreaming": False,
                                     "schema": {},
+                                    "required": False,
+                                    "description": "",
                                 }
                     
                     # 解析 OUTPUT_PARAMS
@@ -414,28 +421,70 @@ class WorkflowEngineService:
                     if raw_output_params:
                         for param_name, param_schema in raw_output_params.items():
                             if isinstance(param_schema, ParameterSchema):
-                                # 统一格式：只包含isStreaming和schema，key就是参数名
+                                # 统一格式：包含isStreaming、schema、required、description
                                 output_params[param_name] = {
                                     "isStreaming": getattr(param_schema, "is_streaming", False),
                                     "schema": getattr(param_schema, "schema", {}),
+                                    "description": getattr(param_schema, "description", ""),
                                 }
                             elif isinstance(param_schema, dict):
-                                # 兼容旧格式，提取isStreaming和schema
+                                # 兼容旧格式，提取isStreaming、schema、required、description
                                 output_params[param_name] = {
                                     "isStreaming": param_schema.get("is_streaming", False) or param_schema.get("isStreaming", False),
                                     "schema": param_schema.get("schema", {}),
+                                    "description": param_schema.get("description", ""),
                                 }
                             else:
                                 output_params[param_name] = {
                                     "isStreaming": False,
                                     "schema": {},
+                                    "required": False,
+                                    "description": "",
                                 }
+                    
+                    # 解析 CONFIG_PARAMS（如果存在）
+                    config_params = {}
+                    raw_config_params = getattr(node_class, "CONFIG_PARAMS", {})
+                    if raw_config_params:
+                        # CONFIG_PARAMS 使用 FieldSchema 格式
+                        # FieldSchema 可以是字符串（简单格式）或字典（详细格式）
+                        for param_name, field_def in raw_config_params.items():
+                            if isinstance(field_def, str):
+                                # 简单格式: "string"
+                                config_params[param_name] = field_def
+                            elif isinstance(field_def, dict):
+                                # 详细格式: {"type": "string", "required": True, "description": "...", "default": "..."}
+                                config_params[param_name] = field_def
+                            else:
+                                # 尝试从 FieldSchema 对象提取
+                                try:
+                                    from stream_workflow.core.parameter import FieldSchema
+                                    if isinstance(field_def, FieldSchema):
+                                        # 从 FieldSchema 对象提取
+                                        field_dict = {
+                                            "type": getattr(field_def, "type", "any"),
+                                        }
+                                        if getattr(field_def, "required", False):
+                                            field_dict["required"] = True
+                                        if getattr(field_def, "description", ""):
+                                            field_dict["description"] = getattr(field_def, "description", "")
+                                        if getattr(field_def, "default", None) is not None:
+                                            field_dict["default"] = getattr(field_def, "default")
+                                        config_params[param_name] = field_dict
+                                    else:
+                                        # 默认简单格式
+                                        config_params[param_name] = "any"
+                                except ImportError:
+                                    # 如果无法导入 FieldSchema，使用默认值
+                                    config_params[param_name] = "any"
                     
                     schema = {
                         "INPUT_PARAMS": input_params,
                         "OUTPUT_PARAMS": output_params,
-                        "CONFIG_SCHEMA": getattr(node_class, "CONFIG_SCHEMA", {}),
                     }
+                    # 使用 CONFIG_PARAMS
+                    if config_params:
+                        schema["CONFIG_PARAMS"] = config_params
                     return schema
             except Exception as e:
                 logger.debug(f"无法导入节点类: {e}", exc_info=True)
@@ -445,7 +494,7 @@ class WorkflowEngineService:
             return {
                 "INPUT_PARAMS": {},
                 "OUTPUT_PARAMS": {},
-                "CONFIG_SCHEMA": {},
+                "CONFIG_PARAMS": {},
             }
 
         except Exception as e:
@@ -453,7 +502,7 @@ class WorkflowEngineService:
             return {
                 "INPUT_PARAMS": {},
                 "OUTPUT_PARAMS": {},
-                "CONFIG_SCHEMA": {},
+                "CONFIG_PARAMS": {},
             }
 
     def _get_color_for_mode(self, mode: str) -> str:
