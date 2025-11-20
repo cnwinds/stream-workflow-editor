@@ -1,0 +1,10 @@
+name: 复杂工作流
+nodes:
+  - id: node1
+    type: advanced
+    config:
+      settings:
+        option1: value1
+        option2: value2
+edges: []
+

@@ -1,0 +1,8 @@
+name: 测试工作流
+nodes:
+  - id: node1
+    type: test
+    config:
+      message: 这是子目录中的测试文件
+edges: []
+

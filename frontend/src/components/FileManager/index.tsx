@@ -6,6 +6,7 @@ import {
   EditOutlined,
   PlusOutlined,
   ReloadOutlined,
+  FolderOutlined,
 } from '@ant-design/icons'
 import { fileApi, FileInfo } from '@/services/api'
 import { useWorkflowStore } from '@/stores/workflowStore'
@@ -168,6 +169,27 @@ const FileManager: React.FC<FileManagerProps> = ({ visible, onClose, onFileSelec
     return date.toLocaleString('zh-CN')
   }
 
+  // 渲染文件名（带路径）
+  const renderFileName = (filename: string) => {
+    const parts = filename.split('/')
+    if (parts.length === 1) {
+      // 根目录文件
+      return <span>{filename}</span>
+    }
+    // 子目录文件：显示路径
+    const dir = parts.slice(0, -1).join('/')
+    const name = parts[parts.length - 1]
+    return (
+      <span>
+        <FolderOutlined style={{ marginRight: 4, color: 'var(--theme-textTertiary, #8c8c8c)' }} />
+        <Text type="secondary" style={{ marginRight: 4 }}>
+          {dir}/
+        </Text>
+        {name}
+      </span>
+    )
+  }
+
   return (
     <Modal
       title="文件管理"
@@ -200,11 +222,12 @@ const FileManager: React.FC<FileManagerProps> = ({ visible, onClose, onFileSelec
           <div className="file-manager-create">
             <Space>
               <Input
-                placeholder="输入文件名（如：my_workflow.yaml）"
+                placeholder="输入文件名（如：my_workflow.yaml 或 subdir/my_workflow.yaml）"
                 value={newFileName}
                 onChange={(e) => setNewFileName(e.target.value)}
                 onPressEnter={handleCreateFile}
                 autoFocus
+                style={{ width: 350 }}
               />
               <Button type="primary" onClick={handleCreateFile}>
                 创建
@@ -283,7 +306,7 @@ const FileManager: React.FC<FileManagerProps> = ({ visible, onClose, onFileSelec
                     onClick={() => handleOpenFile(file.filename)}
                     style={{ cursor: 'pointer' }}
                   >
-                    {file.filename}
+                    {renderFileName(file.filename)}
                   </Text>
                 }
                 description={

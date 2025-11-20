@@ -7,6 +7,7 @@
 - 🎨 **可视化编辑**: 拖拽式节点编辑，直观的工作流设计
 - 🔄 **实时预览**: 实时查看工作流配置和验证结果
 - 📝 **YAML 支持**: 支持 YAML 格式的导入/导出
+- 📁 **子目录支持**: 完整的子目录文件管理（v0.2.3+）
 - ✅ **配置验证**: 实时验证工作流配置的正确性
 - 🚀 **高性能**: 基于 React Flow，支持大量节点的流畅渲染
 - 🎯 **类型安全**: 完整的 TypeScript 类型定义
@@ -143,44 +144,134 @@ python -m stream_workflow_editor.api.main
 
 ## 打包和发布
 
-### 发版流程
+### 发版前准备
 
-**重要**: 在发版前，必须先构建前端静态文件并提交到仓库，这样从 git 仓库安装时才能正常使用。
+**重要**: 在发版前，必须先完成以下准备工作：
+
+1. **更新版本号**
+   - 更新 `pyproject.toml` 中的 `version`
+   - 更新 `frontend/package.json` 中的 `version`
+   - 更新 `CHANGELOG.md` 添加新版本说明
+
+2. **构建前端静态文件**（必须步骤）
+   ```bash
+   python build_frontend.py
+   ```
+   这会构建前端并将静态文件复制到 `src/stream_workflow_editor/static/`
+
+3. **提交所有更改**
+   ```bash
+   git add .
+   git commit -m "release: v0.2.3 - 版本描述"
+   ```
+
+### 使用 Release 脚本发布（推荐）
+
+项目提供了自动化的发布脚本（`release.bat` / `release.sh`），可以简化发版流程：
+
+#### 使用步骤
+
+1. **编辑脚本，更新版本号**
+   
+   **Windows (`release.bat`):**
+   ```batch
+   REM 找到文件开头的 VERSION 变量，修改为当前版本号
+   set VERSION=0.2.3
+   ```
+   
+   **Linux/Mac (`release.sh`):**
+   ```bash
+   # 找到文件开头的 VERSION 变量，修改为当前版本号
+   VERSION="0.2.3"
+   ```
+
+2. **运行脚本**
+   
+   **Windows:**
+   ```cmd
+   release.bat
+   ```
+   
+   **Linux/Mac:**
+   ```bash
+   # 首次使用需要添加执行权限
+   chmod +x release.sh
+   
+   # 运行脚本
+   ./release.sh
+   ```
+
+#### 脚本功能
+
+Release 脚本会自动完成以下操作：
+
+1. ✅ 检查当前分支（建议在 main 分支）
+2. ✅ 检查未提交的更改（可选择提交）
+3. ✅ 推送到远程仓库
+4. ✅ 创建并推送 Git 标签
+
+#### 脚本完成后
+
+脚本完成后，还需要手动完成以下步骤：
+
+1. **在 GitHub 创建 Release**
+   - 访问: https://github.com/cnwinds/stream-workflow-editor/releases/new
+   - 选择刚创建的标签（如 `v0.2.3`）
+   - 复制 `CHANGELOG.md` 中的版本说明作为描述
+   - 点击 "Publish release"
+
+2. **（可选）发布到 PyPI**
+   ```bash
+   # 构建 Python 包
+   pip install build twine
+   python -m build
+   
+   # 发布到 PyPI
+   python -m twine upload dist/*
+   ```
+
+### 手动发布流程
+
+如果不使用 release 脚本，可以手动执行以下步骤：
 
 ```bash
 # 1. 构建前端静态文件（必须步骤）
 python build_frontend.py
 
-# 2. 提交构建后的 static 目录到 git（如果尚未提交）
-git add src/stream_workflow_editor/static/
-git commit -m "chore: 构建前端静态文件"
+# 2. 提交所有更改
+git add .
+git commit -m "release: v0.2.3 - 版本描述"
+git push origin main
 
-# 3. 构建 Python 包
-pip install build
+# 3. 创建并推送 Git 标签
+git tag -a v0.2.3 -m "Release v0.2.3"
+git push origin v0.2.3
+
+# 4. 在 GitHub 创建 Release（手动操作）
+
+# 5. （可选）构建并发布到 PyPI
+pip install build twine
 python -m build
-
-# 4. 发布到 PyPI（需要配置 twine）
-twine upload dist/*
-
-# 5. 创建 git tag（可选）
-git tag v0.2.2
-git push origin v0.2.2
+python -m twine upload dist/*
 ```
 
 ### 从 GitHub 仓库安装
 
 ```bash
-# 从 GitHub 仓库安装（推荐）
+# 从 GitHub 仓库安装最新版本（推荐）
 pip install git+https://github.com/cnwinds/stream-workflow-editor.git
 
 # 或安装指定版本
-pip install git+https://github.com/cnwinds/stream-workflow-editor.git@v0.2.2
+pip install git+https://github.com/cnwinds/stream-workflow-editor.git@v0.2.3
 ```
 
 ### 本地安装测试
 
 ```bash
-# 在项目根目录
+# 构建前端静态文件（必须步骤）
+python build_frontend.py
+
+# 在项目根目录安装
 pip install -e .
 
 # 测试命令

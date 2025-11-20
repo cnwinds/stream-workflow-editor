@@ -1,0 +1,20 @@
+name: 示例工作流
+nodes:
+  - id: start
+    type: input
+    config:
+      message: 开始节点
+  - id: process
+    type: transform
+    config:
+      action: 处理数据
+  - id: end
+    type: output
+    config:
+      message: 结束节点
+edges:
+  - source: start
+    target: process
+  - source: process
+    target: end
+

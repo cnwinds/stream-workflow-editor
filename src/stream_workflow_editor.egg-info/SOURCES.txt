@@ -32,7 +32,8 @@ src/stream_workflow_editor/custom_nodes/TestNode1.py
 src/stream_workflow_editor/custom_nodes/__init__.py
 src/stream_workflow_editor/custom_nodes/registry.json
 src/stream_workflow_editor/custom_nodes/templates/node_template.py
+src/stream_workflow_editor/custom_nodes/templates/__pycache__/node_template.cpython-313.pyc
 src/stream_workflow_editor/static/index.html
-src/stream_workflow_editor/static/assets/index-BmbOAYFH.js
-src/stream_workflow_editor/static/assets/index-BmbOAYFH.js.map
-src/stream_workflow_editor/static/assets/index-vce8w7xP.css
+src/stream_workflow_editor/static/assets/index-BTOh0FAe.css
+src/stream_workflow_editor/static/assets/index-zZxBBOJw.js
+src/stream_workflow_editor/static/assets/index-zZxBBOJw.js.map

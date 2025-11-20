@@ -16,20 +16,33 @@ def validate_filename(filename: str) -> bool:
     - 只允许字母、数字、下划线、中文字符和连字符
     - 必须包含文件扩展名 .yaml 或 .yml
     - 不允许路径遍历字符
+    - 支持子目录路径（使用正斜杠）
     """
     if not filename:
         return False
     
     # 检查路径遍历攻击
-    if '..' in filename or '/' in filename or '\\' in filename:
+    if '..' in filename or '\\' in filename:
         return False
     
     # 检查文件扩展名
     if not (filename.endswith('.yaml') or filename.endswith('.yml')):
         return False
     
-    # 检查文件名格式（允许字母、数字、下划线、连字符、中文）
-    name_without_ext = filename.rsplit('.', 1)[0]
+    # 分离路径和文件名
+    parts = filename.split('/')
+    
+    # 验证每个路径部分
+    for part in parts[:-1]:  # 检查目录名
+        if not part:  # 不允许空目录名
+            return False
+        # 允许字母、数字、下划线、连字符、中文字符
+        pattern = r'^[\w\-_\u4e00-\u9fa5]+$'
+        if not re.match(pattern, part):
+            return False
+    
+    # 验证文件名部分
+    name_without_ext = parts[-1].rsplit('.', 1)[0]
     if not name_without_ext:
         return False
     
@@ -44,12 +57,20 @@ def validate_filename(filename: str) -> bool:
 def sanitize_filename(filename: str) -> str:
     """
     清理文件名，移除非法字符
+    支持子目录路径（使用正斜杠）
     """
-    # 移除路径分隔符
-    filename = filename.replace('/', '').replace('\\', '').replace('..', '')
-    # 移除其他非法字符，只保留字母、数字、下划线、连字符、中文和点
-    filename = re.sub(r'[^\w\-_\.\u4e00-\u9fa5]', '', filename)
-    return filename
+    # 统一使用正斜杠，移除路径遍历字符
+    filename = filename.replace('\\', '/').replace('..', '')
+    # 分割路径
+    parts = filename.split('/')
+    # 清理每个部分
+    cleaned_parts = []
+    for part in parts:
+        # 移除非法字符，只保留字母、数字、下划线、连字符、中文和点
+        cleaned = re.sub(r'[^\w\-_\.\u4e00-\u9fa5]', '', part)
+        if cleaned:  # 忽略空部分
+            cleaned_parts.append(cleaned)
+    return '/'.join(cleaned_parts)
 
 
 def get_yaml_directory() -> Path:
@@ -69,26 +90,32 @@ def get_yaml_directory() -> Path:
 
 def list_yaml_files() -> List[Dict[str, Any]]:
     """
-    列出所有YAML文件
-    返回文件信息列表，包含文件名、大小、修改时间等
+    列出所有YAML文件（包括子目录）
+    返回文件信息列表，包含文件名（相对路径）、大小、修改时间等
     """
     yaml_dir = get_yaml_directory()
     files = []
     
-    for file_path in yaml_dir.glob('*.yaml'):
+    # 递归搜索所有 .yaml 文件
+    for file_path in yaml_dir.rglob('*.yaml'):
         if file_path.is_file():
             stat = file_path.stat()
+            # 获取相对路径，使用正斜杠作为分隔符
+            relative_path = file_path.relative_to(yaml_dir)
             files.append({
-                'filename': file_path.name,
+                'filename': str(relative_path).replace('\\', '/'),
                 'size': stat.st_size,
                 'modified': stat.st_mtime,
             })
     
-    for file_path in yaml_dir.glob('*.yml'):
+    # 递归搜索所有 .yml 文件
+    for file_path in yaml_dir.rglob('*.yml'):
         if file_path.is_file():
             stat = file_path.stat()
+            # 获取相对路径，使用正斜杠作为分隔符
+            relative_path = file_path.relative_to(yaml_dir)
             files.append({
-                'filename': file_path.name,
+                'filename': str(relative_path).replace('\\', '/'),
                 'size': stat.st_size,
                 'modified': stat.st_mtime,
             })
@@ -101,11 +128,13 @@ def list_yaml_files() -> List[Dict[str, Any]]:
 def read_yaml_file(filename: str) -> Dict[str, Any]:
     """
     读取YAML文件内容
+    支持子目录路径（如 'subdir/config.yaml'）
     """
     if not validate_filename(filename):
         raise ValueError(f'无效的文件名: {filename}')
     
-    file_path = get_yaml_directory() / filename
+    # 将路径中的正斜杠转换为系统路径分隔符
+    file_path = get_yaml_directory() / filename.replace('/', os.sep)
     
     if not file_path.exists():
         raise FileNotFoundError(f'文件不存在: {filename}')
@@ -125,17 +154,22 @@ def read_yaml_file(filename: str) -> Dict[str, Any]:
 def save_yaml_file(filename: str, content: Dict[str, Any], overwrite: bool = False) -> Dict[str, Any]:
     """
     保存YAML文件
+    支持子目录路径（如 'subdir/config.yaml'），自动创建目录
     """
     if not validate_filename(filename):
         raise ValueError(f'无效的文件名: {filename}')
     
-    file_path = get_yaml_directory() / filename
+    # 将路径中的正斜杠转换为系统路径分隔符
+    file_path = get_yaml_directory() / filename.replace('/', os.sep)
     
     # 检查文件是否存在
     if file_path.exists() and not overwrite:
         raise FileExistsError(f'文件已存在: {filename}')
     
     try:
+        # 确保父目录存在
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        
         with open(file_path, 'w', encoding='utf-8') as f:
             yaml.dump(content, f, allow_unicode=True, default_flow_style=False, sort_keys=False)
         
@@ -152,11 +186,13 @@ def save_yaml_file(filename: str, content: Dict[str, Any], overwrite: bool = Fal
 def delete_yaml_file(filename: str) -> bool:
     """
     删除YAML文件
+    支持子目录路径（如 'subdir/config.yaml'）
     """
     if not validate_filename(filename):
         raise ValueError(f'无效的文件名: {filename}')
     
-    file_path = get_yaml_directory() / filename
+    # 将路径中的正斜杠转换为系统路径分隔符
+    file_path = get_yaml_directory() / filename.replace('/', os.sep)
     
     if not file_path.exists():
         raise FileNotFoundError(f'文件不存在: {filename}')
@@ -171,6 +207,7 @@ def delete_yaml_file(filename: str) -> bool:
 def rename_yaml_file(old_name: str, new_name: str) -> Dict[str, Any]:
     """
     重命名YAML文件
+    支持子目录路径（如 'subdir/config.yaml'）
     """
     if not validate_filename(old_name):
         raise ValueError(f'无效的旧文件名: {old_name}')
@@ -178,8 +215,9 @@ def rename_yaml_file(old_name: str, new_name: str) -> Dict[str, Any]:
     if not validate_filename(new_name):
         raise ValueError(f'无效的新文件名: {new_name}')
     
-    old_path = get_yaml_directory() / old_name
-    new_path = get_yaml_directory() / new_name
+    # 将路径中的正斜杠转换为系统路径分隔符
+    old_path = get_yaml_directory() / old_name.replace('/', os.sep)
+    new_path = get_yaml_directory() / new_name.replace('/', os.sep)
     
     if not old_path.exists():
         raise FileNotFoundError(f'文件不存在: {old_name}')
@@ -188,6 +226,9 @@ def rename_yaml_file(old_name: str, new_name: str) -> Dict[str, Any]:
         raise FileExistsError(f'目标文件已存在: {new_name}')
     
     try:
+        # 确保目标目录存在
+        new_path.parent.mkdir(parents=True, exist_ok=True)
+        
         old_path.rename(new_path)
         stat = new_path.stat()
         return {
@@ -202,10 +243,12 @@ def rename_yaml_file(old_name: str, new_name: str) -> Dict[str, Any]:
 def file_exists(filename: str) -> bool:
     """
     检查文件是否存在
+    支持子目录路径（如 'subdir/config.yaml'）
     """
     if not validate_filename(filename):
         return False
     
-    file_path = get_yaml_directory() / filename
+    # 将路径中的正斜杠转换为系统路径分隔符
+    file_path = get_yaml_directory() / filename.replace('/', os.sep)
     return file_path.exists()
 

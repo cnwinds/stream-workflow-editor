@@ -45,9 +45,9 @@ async def list_files():
         raise HTTPException(status_code=500, detail=f"获取文件列表失败: {str(e)}")
 
 
-@router.get("/{filename}", response_model=dict)
+@router.get("/{filename:path}", response_model=dict)
 async def read_file(filename: str):
-    """读取文件内容"""
+    """读取文件内容（支持子目录路径）"""
     try:
         content = file_service.read_yaml_file(filename)
         return content
@@ -80,9 +80,9 @@ async def create_file(request: CreateFileRequest):
         raise HTTPException(status_code=500, detail=f"创建文件失败: {str(e)}")
 
 
-@router.put("/{filename}", response_model=FileInfo)
+@router.put("/{filename:path}", response_model=FileInfo)
 async def update_file(filename: str, request: UpdateFileRequest):
-    """更新文件内容（覆盖保存）"""
+    """更新文件内容（覆盖保存，支持子目录路径）"""
     try:
         result = file_service.save_yaml_file(filename, request.content, overwrite=request.overwrite)
         return result
@@ -96,9 +96,9 @@ async def update_file(filename: str, request: UpdateFileRequest):
         raise HTTPException(status_code=500, detail=f"更新文件失败: {str(e)}")
 
 
-@router.delete("/{filename}")
+@router.delete("/{filename:path}")
 async def delete_file(filename: str):
-    """删除文件"""
+    """删除文件（支持子目录路径）"""
     try:
         file_service.delete_yaml_file(filename)
         return {"message": "文件删除成功", "filename": filename}
@@ -110,9 +110,9 @@ async def delete_file(filename: str):
         raise HTTPException(status_code=500, detail=f"删除文件失败: {str(e)}")
 
 
-@router.post("/{filename}/rename", response_model=FileInfo)
+@router.post("/{filename:path}/rename", response_model=FileInfo)
 async def rename_file(filename: str, request: RenameFileRequest):
-    """重命名文件"""
+    """重命名文件（支持子目录路径）"""
     try:
         result = file_service.rename_yaml_file(filename, request.new_name)
         return result

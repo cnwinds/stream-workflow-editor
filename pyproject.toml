@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "stream-workflow-editor"
-version = "0.2.2"
+version = "0.2.3"
 description = "流式工作流可视化编辑器 - 为 stream-workflow 提供可视化编辑界面"
 readme = "README.md"
 requires-python = ">=3.8"

@@ -110,3 +110,11 @@
   color: var(--theme-textTertiary, #8c8c8c);
 }
 
+.file-name .ant-typography {
+  color: inherit !important;
+}
+
+.file-name .anticon-folder {
+  font-size: 12px;
+}
+
