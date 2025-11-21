@@ -28,6 +28,7 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ nodeId, edgeId }) => 
   const [nodeCreatorVisible, setNodeCreatorVisible] = useState(false)
   const [instanceCount, setInstanceCount] = useState(0)
   const [nodeDescription, setNodeDescription] = useState<string>('')
+  const [configParams, setConfigParams] = useState<Record<string, any> | undefined>(undefined)
   
   // 根据主题确定Monaco Editor的主题
   const editorTheme = theme === 'dark' ? 'vs-dark' : 'vs'
@@ -166,6 +167,21 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ nodeId, edgeId }) => 
         setInstanceCount(cachedIsCustom ? count : 0)
       }
 
+      // 获取节点schema（用于配置字段定义）
+      try {
+        const schema = await nodeApi.getNodeSchema(nodeType)
+        if (!cancelled && schema?.CONFIG_PARAMS) {
+          setConfigParams(schema.CONFIG_PARAMS)
+        } else if (!cancelled) {
+          setConfigParams(undefined)
+        }
+      } catch (error) {
+        console.warn('获取节点schema失败:', error)
+        if (!cancelled) {
+          setConfigParams(undefined)
+        }
+      }
+
       try {
         // 如果缓存中没有描述，尝试获取
         if (!cachedDescription) {
@@ -281,6 +297,7 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ nodeId, edgeId }) => 
         // 节点变为 null，清空表单
         form.resetFields()
         setYamlContent('')
+        setConfigParams(undefined)
       }
     }
   }, [node, nodeId, form])
@@ -618,6 +635,7 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ nodeId, edgeId }) => 
                     <Form.Item label="节点配置" name="config">
                       <ConfigEditor
                         placeholder="输入节点配置（JSON格式）"
+                        configParams={configParams}
                         onChange={(config) => {
                           updateNodeData(node.id, { config })
                         }}
