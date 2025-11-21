@@ -6,6 +6,7 @@ NODE_TEMPLATE = '''"""
 {{description}}
 """
 from stream_workflow.core import Node, ParameterSchema, register_node
+from stream_workflow.core.parameter import FieldSchema
 
 @register_node('{{node_id}}')
 class {{class_name}}(Node):
@@ -43,7 +44,13 @@ class {{class_name}}(Node):
 {% if config_params %}
     CONFIG_PARAMS = {
 {% for param in config_params %}
-        "{{param.name}}": {% if param.format == 'simple' %}{{param.field_def|to_python}}{% else %}{{param.field_def|to_python}}{% endif %}{% if not loop.last %},{% endif %}
+        "{{param.name}}": FieldSchema(
+{% if param.format == 'simple' %}
+            {"type": {{param.field_def|to_python}}}
+{% else %}
+            {{param.field_def|format_field_schema}}
+{% endif %}
+        ){% if not loop.last %},{% endif %}
 {% endfor %}
     }
 {% else %}

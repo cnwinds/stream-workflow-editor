@@ -98,6 +98,49 @@ def to_python_literal(value: Any) -> str:
         # 解析失败说明不是纯 JSON，直接返回原字符串
         return value
 
+
+def format_field_schema_dict(value: Any, indent: int = 12) -> str:
+    """
+    格式化 FieldSchema 字典为多行 Python 字典格式
+    用于生成美观的配置参数代码
+    
+    Args:
+        value: 要格式化的值（通常是字典）
+        indent: 缩进空格数（默认12，对应FieldSchema参数的缩进）
+    """
+    if isinstance(value, dict):
+        if not value:
+            return "{}"
+        
+        indent_str = " " * indent
+        inner_indent = " " * (indent + 4)
+        
+        lines = []
+        for key, val in value.items():
+            # 格式化值
+            if isinstance(val, str):
+                formatted_val = repr(val)
+            elif isinstance(val, bool):
+                formatted_val = "True" if val else "False"
+            elif val is None:
+                formatted_val = "None"
+            elif isinstance(val, (int, float)):
+                formatted_val = repr(val)
+            elif isinstance(val, dict):
+                # 递归格式化嵌套字典
+                nested = format_field_schema_dict(val, indent + 4)
+                formatted_val = nested
+            elif isinstance(val, list):
+                formatted_val = repr(val)
+            else:
+                formatted_val = repr(val)
+            
+            lines.append(f'{inner_indent}"{key}": {formatted_val}')
+        
+        return "{\n" + ",\n".join(lines) + f"\n{indent_str}}}"
+    else:
+        return repr(value)
+
 def get_template_file() -> Path:
     """获取模板文件路径"""
     templates_dir = config.get_templates_dir()
@@ -146,6 +189,7 @@ def _get_default_template() -> str:
 {{description}}
 """
 from stream_workflow.core import Node, ParameterSchema, register_node
+from stream_workflow.core.parameter import FieldSchema
 
 @register_node('{{node_id}}')
 class {{class_name}}(Node):
@@ -183,7 +227,13 @@ class {{class_name}}(Node):
 {% if config_params %}
     CONFIG_PARAMS = {
 {% for param in config_params %}
-        "{{param.name}}": {% if param.format == 'simple' %}{{param.field_def|to_python}}{% else %}{{param.field_def|to_python}}{% endif %}{% if not loop.last %},{% endif %}
+        "{{param.name}}": FieldSchema(
+{% if param.format == 'simple' %}
+            {"type": {{param.field_def|to_python}}}
+{% else %}
+            {{param.field_def|format_field_schema}}
+{% endif %}
+        ){% if not loop.last %},{% endif %}
 {% endfor %}
     }
 {% else %}
@@ -265,6 +315,7 @@ def generate_node_code(
     # 创建 Jinja2 环境并添加自定义过滤器
     env = Environment()
     env.filters['to_python'] = to_python_literal
+    env.filters['format_field_schema'] = format_field_schema_dict
     template = env.from_string(template_str)
     
     class_name = to_python_class_name(node_id)

@@ -145,8 +145,8 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
         const fieldDef = configFields.optional.find(f => f.fieldName === key) || 
                         configFields.required.find(f => f.fieldName === key)
         itemsArray.push({
-          key,
-          value: typeof val === 'string' ? val : JSON.stringify(val, null, 2),
+      key,
+      value: typeof val === 'string' ? val : JSON.stringify(val, null, 2),
           isRequired: false,
           fieldDef,
         })
@@ -521,7 +521,7 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
                   />
                 ) : item.fieldDef ? (
                   // 已定义的字段：显示为只读
-                  <Input
+                <Input
                     value={item.key}
                     disabled
                     style={{ width: '100%' }}
@@ -534,9 +534,9 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
                     onDragOver={(e: React.DragEvent) => e.stopPropagation()}
                   >
                     <AutoComplete
-                      value={item.key}
+                  value={item.key}
                       onChange={(val) => handleKeyChange(index, val)}
-                      style={{ width: '100%' }}
+                  style={{ width: '100%' }}
                       placeholder="配置项名称"
                       options={configFields.optional
                         .filter(f => !items.some(item => item.key === f.fieldName && item !== items[index]))
@@ -584,18 +584,18 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
                   }
                 />
                 {!item.isRequired && (
-                  <Button
-                    type="text"
-                    danger
-                    icon={<DeleteOutlined />}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleRemoveItem(index)
-                    }}
-                    onDragStart={(e) => e.stopPropagation()}
-                    onDragOver={(e) => e.stopPropagation()}
-                    title="删除此项"
-                  />
+                <Button
+                  type="text"
+                  danger
+                  icon={<DeleteOutlined />}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleRemoveItem(index)
+                  }}
+                  onDragStart={(e) => e.stopPropagation()}
+                  onDragOver={(e) => e.stopPropagation()}
+                  title="删除此项"
+                />
                 )}
               </div>
             </div>
@@ -636,15 +636,15 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
           <Option value="__custom__">+ 自定义字段</Option>
         </Select>
       ) : (
-        <Button
-          type="dashed"
-          icon={<PlusOutlined />}
+      <Button
+        type="dashed"
+        icon={<PlusOutlined />}
           onClick={() => handleAddItem()}
-          block
-          style={{ marginTop: 8 }}
-        >
-          添加配置项
-        </Button>
+        block
+        style={{ marginTop: 8 }}
+      >
+        添加配置项
+      </Button>
       )}
 
       <Modal
