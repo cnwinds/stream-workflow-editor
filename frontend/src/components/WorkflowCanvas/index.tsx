@@ -96,6 +96,8 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
     canUndo,
     canRedo,
     updateNodeData,
+    shouldFitView,
+    resetFitViewFlag,
   } = useWorkflowStore()
 
   // 监听 edges 变化，如果选中的连接线被删除，清除选中状态
@@ -573,6 +575,17 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
   const onInit = useCallback((instance: ReactFlowInstance) => {
     reactFlowInstance.current = instance
   }, [])
+
+  // 监听 shouldFitView 标志，在加载 YAML 文件后自动适应视图
+  useEffect(() => {
+    if (shouldFitView && reactFlowInstance.current && nodes.length > 0) {
+      // 使用 setTimeout 确保节点已经渲染完成
+      setTimeout(() => {
+        reactFlowInstance.current?.fitView({ padding: 0.2, duration: 300 })
+        resetFitViewFlag()
+      }, 100)
+    }
+  }, [shouldFitView, nodes.length, resetFitViewFlag])
 
   // 监听在画布中心创建节点的事件
   useEffect(() => {

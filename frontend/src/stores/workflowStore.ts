@@ -12,6 +12,7 @@ interface WorkflowState {
   edges: Edge[]
   workflowConfig: WorkflowConfig | null
   currentFileName: string | null
+  shouldFitView: boolean // 标记是否需要在加载后自动适应视图
   
   // 历史记录
   history: HistoryState[]
@@ -38,6 +39,7 @@ interface WorkflowState {
     outputParams?: Record<string, any>
     configParams?: Record<string, any>
   }) => void
+  resetFitViewFlag: () => void // 重置 fitView 标志
   
   // 撤销/重做
   saveHistory: () => void
@@ -56,6 +58,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
   edges: initialEdges,
   workflowConfig: null,
   currentFileName: null,
+  shouldFitView: false,
   history: [{ nodes: initialNodes, edges: initialEdges }],
   historyIndex: 0,
 
@@ -362,8 +365,13 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
       workflowConfig: config,
       history: [initialState],
       historyIndex: 0,
+      shouldFitView: true, // 标记需要在加载后自动适应视图
       // 加载工作流时不设置文件名，需要外部调用setCurrentFileName
     })
+  },
+
+  resetFitViewFlag: () => {
+    set({ shouldFitView: false })
   },
 
   setCurrentFileName: (filename) => {
