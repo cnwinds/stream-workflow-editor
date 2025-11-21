@@ -858,42 +858,37 @@ def update_custom_node_config_params(
         current_code = f.read()
     
     # 生成新的 CONFIG_PARAMS 代码（使用 FieldSchema 格式）
+    def format_field_value(value: Any) -> str:
+        """格式化字段值，使用单引号以匹配用户期望的格式"""
+        if isinstance(value, str):
+            return repr(value).replace('"', "'")
+        elif isinstance(value, bool):
+            return str(value)
+        elif value is None:
+            return "None"
+        else:
+            return repr(value)
+    
     config_params_lines = []
     for param_name, field_def in config_schema.items():
         if isinstance(field_def, str):
             # 简单格式: "string" -> FieldSchema({"type": "string"})
-            # 使用单引号以匹配用户期望的格式
-            type_str = repr(field_def).replace('"', "'") if isinstance(field_def, str) else repr(field_def)
             config_params_lines.append(
                 f'        "{param_name}": FieldSchema({{\n'
-                f"            'type': {type_str}\n"
+                f"            'type': {format_field_value(field_def)}\n"
                 f'        }})'
             )
         elif isinstance(field_def, dict):
             # 详细格式: {"type": "string", "required": True, "description": "...", "default": "..."}
-            # 使用单引号以匹配用户期望的格式
             field_dict_lines = []
             if "type" in field_def:
-                type_val = field_def["type"]
-                type_str = repr(type_val).replace('"', "'") if isinstance(type_val, str) else repr(type_val)
-                field_dict_lines.append(f"            'type': {type_str}")
+                field_dict_lines.append(f"            'type': {format_field_value(field_def['type'])}")
             if field_def.get("required", False):
                 field_dict_lines.append("            'required': True")
             if "description" in field_def:
-                desc_val = field_def["description"]
-                desc_str = repr(desc_val).replace('"', "'") if isinstance(desc_val, str) else repr(desc_val)
-                field_dict_lines.append(f"            'description': {desc_str}")
+                field_dict_lines.append(f"            'description': {format_field_value(field_def['description'])}")
             if "default" in field_def:
-                default_val = field_def["default"]
-                if isinstance(default_val, str):
-                    default_str = repr(default_val).replace('"', "'")
-                    field_dict_lines.append(f"            'default': {default_str}")
-                elif isinstance(default_val, bool):
-                    field_dict_lines.append(f"            'default': {str(default_val)}")
-                elif default_val is None:
-                    field_dict_lines.append("            'default': None")
-                else:
-                    field_dict_lines.append(f"            'default': {repr(default_val)}")
+                field_dict_lines.append(f"            'default': {format_field_value(field_def['default'])}")
             
             field_dict_str = ',\n'.join(field_dict_lines)
             config_params_lines.append(

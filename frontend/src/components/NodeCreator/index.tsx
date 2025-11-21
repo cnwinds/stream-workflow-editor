@@ -774,13 +774,13 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
         const hasCategoryChange = originalData && originalData.category !== values.category
         const hasExecutionModeChange = originalData && originalData.executionMode !== values.executionMode
         const hasColorChange = originalData && originalData.color !== (values.color || '#1890ff')
-        // 更健壮的配置参数比较：规范化后再比较
-        const normalizeConfigParams = (params: Record<string, any> | undefined) => {
+        // 规范化配置参数用于比较（对键进行排序以确保一致性）
+        const normalizeConfigParams = (params: Record<string, any> | undefined): Record<string, any> => {
           if (!params) return {}
           const normalized: Record<string, any> = {}
           Object.keys(params).sort().forEach(key => {
             const value = params[key]
-            if (typeof value === 'object' && value !== null) {
+            if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
               // 对对象进行排序
               const sorted: Record<string, any> = {}
               Object.keys(value).sort().forEach(k => {
@@ -811,24 +811,8 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
                                        !hasExecutionModeChange && !hasColorChange && !hasInputsChange &&
                                        !hasOutputsChange && hasConfigParamsChange
         
-        console.log('更新检查:', {
-          hasNameChange,
-          hasDescriptionChange,
-          hasCategoryChange,
-          hasExecutionModeChange,
-          hasColorChange,
-          hasConfigParamsChange,
-          hasInputsChange,
-          hasOutputsChange,
-          hasCodeChange,
-          onlyConfigParamsChanged,
-          onlyParametersChanged
-        })
-        
         if (onlyConfigParamsChanged) {
           // 只更新配置参数，使用新接口，保留其他代码
-          console.log('使用配置参数更新接口，保留所有代码')
-          console.log('配置参数:', configParamsDict)
           await nodeApi.updateCustomNodeConfigParams(editingNodeId, {
             configParams: configParamsDict,
           })
@@ -878,16 +862,14 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
             // 如果代码被手动修改过，使用用户修改的代码
             if (codeManuallyModified) {
               finalPythonCode = pythonCode
-              console.log('使用手动修改的代码')
             } else {
               // 如果代码没有被手动修改，优先使用当前代码（保留原有代码）
               // 只有在代码不存在时才生成新代码
               if (pythonCode && pythonCode.trim()) {
                 finalPythonCode = pythonCode
-                console.log('使用当前代码（保留原有代码）')
               } else {
                 // 如果代码不存在，根据新参数生成代码
-                const generatedCode = nodeGenerator.generateNodeCode({
+                finalPythonCode = nodeGenerator.generateNodeCode({
                   nodeId: values.nodeId,
                   name: values.name,
                   description: values.description || "",
@@ -898,18 +880,15 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
                   outputs: outputsDict,
                   configParams: configParamsDict,
                 })
-                finalPythonCode = generatedCode
-                console.log('代码不存在，生成新代码')
               }
             }
           } else {
             // 如果没有显示代码编辑器，尝试获取当前代码，如果不存在则生成新代码
             if (originalPythonCode && originalPythonCode.trim()) {
               finalPythonCode = originalPythonCode
-              console.log('使用原始代码（保留原有代码）')
             } else {
               // 如果代码不存在，根据新参数生成代码
-              const generatedCode = nodeGenerator.generateNodeCode({
+              finalPythonCode = nodeGenerator.generateNodeCode({
                 nodeId: values.nodeId,
                 name: values.name,
                 description: values.description || "",
@@ -920,8 +899,6 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
                 outputs: outputsDict,
                 configParams: configParamsDict,
               })
-              finalPythonCode = generatedCode
-              console.log('代码不存在，生成新代码')
             }
           }
 

@@ -54,38 +54,38 @@ export const nodeGenerator = {
       .join('\n')
 
     // 生成配置参数代码（使用 FieldSchema 格式）
+    const formatFieldValue = (value: any): string => {
+      if (typeof value === 'string') {
+        return JSON.stringify(value).replace(/"/g, "'")
+      }
+      return JSON.stringify(value)
+    }
+
     const configParamsCode = configParams && Object.keys(configParams).length > 0
       ? Object.entries(configParams)
           .map(([paramName, fieldDef], index, arr) => {
-            // FieldSchema 可以是字符串（简单格式）或对象（详细格式）
             const comma = index < arr.length - 1 ? ',' : ''
+            
             if (typeof fieldDef === 'string') {
               // 简单格式: "string" -> FieldSchema({'type': 'string'})
-              return `        "${paramName}": FieldSchema({\n            'type': ${JSON.stringify(fieldDef).replace(/"/g, "'")}\n        })${comma}`
+              return `        "${paramName}": FieldSchema({\n            'type': ${formatFieldValue(fieldDef)}\n        })${comma}`
             } else if (typeof fieldDef === 'object' && fieldDef !== null) {
               // 详细格式: {"type": "string", "required": True, "description": "...", "default": "..."}
               const fieldDictLines: string[] = []
+              
               if (fieldDef.type !== undefined) {
-                const typeStr = typeof fieldDef.type === 'string' 
-                  ? JSON.stringify(fieldDef.type).replace(/"/g, "'")
-                  : JSON.stringify(fieldDef.type)
-                fieldDictLines.push(`            'type': ${typeStr}`)
+                fieldDictLines.push(`            'type': ${formatFieldValue(fieldDef.type)}`)
               }
               if (fieldDef.required === true) {
                 fieldDictLines.push(`            'required': True`)
               }
               if (fieldDef.description !== undefined) {
-                const descStr = typeof fieldDef.description === 'string'
-                  ? JSON.stringify(fieldDef.description).replace(/"/g, "'")
-                  : JSON.stringify(fieldDef.description)
-                fieldDictLines.push(`            'description': ${descStr}`)
+                fieldDictLines.push(`            'description': ${formatFieldValue(fieldDef.description)}`)
               }
               if (fieldDef.default !== undefined) {
-                const defaultStr = typeof fieldDef.default === 'string'
-                  ? JSON.stringify(fieldDef.default).replace(/"/g, "'")
-                  : JSON.stringify(fieldDef.default)
-                fieldDictLines.push(`            'default': ${defaultStr}`)
+                fieldDictLines.push(`            'default': ${formatFieldValue(fieldDef.default)}`)
               }
+              
               const fieldDictStr = fieldDictLines.join(',\n')
               return `        "${paramName}": FieldSchema({\n${fieldDictStr}\n        })${comma}`
             } else {
