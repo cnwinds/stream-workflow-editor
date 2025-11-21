@@ -37,8 +37,8 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ nodeId, edgeId }) => 
   const nodeType = node?.data?.type || node?.type
   const edge = edgeId ? edges.find((e) => e.id === edgeId) : null
   
-  // 用于跟踪上一次的节点ID，判断节点是否真正变化
   const prevNodeIdRef = useRef<string | null>(null)
+  const configParamsRef = useRef<Record<string, any> | undefined>(undefined)
 
   // 计算连接线的详细信息
   const connectionInfo = useMemo(() => {
@@ -110,16 +110,12 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ nodeId, edgeId }) => 
     }
   }, [edgeId, nodeId])
 
-  // 检查节点是否为自定义节点，并统计实例数量，同时获取节点描述
-  // 使用 ref 跟踪上一次的节点类型，避免重复调用
   const prevNodeTypeRef = useRef<string | null>(null)
   const fetchingRef = useRef<boolean>(false)
 
   useEffect(() => {
-    // 使用 ref 标记，避免重复调用
     let cancelled = false
 
-    // 如果节点类型没有变化，且正在获取中，则不重复调用
     if (nodeType === prevNodeTypeRef.current && fetchingRef.current) {
       return
     }
@@ -134,9 +130,9 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ nodeId, edgeId }) => 
         return
       }
 
-      // 如果节点类型没有变化，且已经有描述，则不需要重新获取
-      if (nodeType === prevNodeTypeRef.current) {
-        // 只更新实例数量（因为节点可能被添加/删除）
+      const needFetchSchema = nodeType !== prevNodeTypeRef.current || !configParamsRef.current
+      
+      if (nodeType === prevNodeTypeRef.current && !needFetchSchema) {
         const currentNodes = useWorkflowStore.getState().nodes
         const cachedIsCustom = checkIsCustomNode(nodeType)
         const count = currentNodes.filter((n) => (n.data?.type || n.type) === nodeType).length
@@ -146,48 +142,43 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ nodeId, edgeId }) => 
         return
       }
 
-      // 更新节点类型引用
       prevNodeTypeRef.current = nodeType
       fetchingRef.current = true
 
-      // 首先尝试从缓存中获取节点描述
       const cachedDescription = getNodeDescription(nodeType)
       if (cachedDescription) {
         setNodeDescription(cachedDescription)
       }
 
-      // 从缓存中判断是否为自定义节点（使用从 store 导入的函数）
       const cachedIsCustom = checkIsCustomNode(nodeType)
       setIsCustomNode(cachedIsCustom)
 
-      // 统计使用该节点类型的实例数量
       const currentNodes = useWorkflowStore.getState().nodes
       const count = currentNodes.filter((n) => (n.data?.type || n.type) === nodeType).length
       if (!cancelled) {
         setInstanceCount(cachedIsCustom ? count : 0)
       }
 
-      // 获取节点schema（用于配置字段定义）
       try {
         const schema = await nodeApi.getNodeSchema(nodeType)
         if (!cancelled && schema?.CONFIG_PARAMS) {
+          configParamsRef.current = schema.CONFIG_PARAMS
           setConfigParams(schema.CONFIG_PARAMS)
         } else if (!cancelled) {
+          configParamsRef.current = undefined
           setConfigParams(undefined)
         }
       } catch (error) {
         console.warn('获取节点schema失败:', error)
         if (!cancelled) {
+          configParamsRef.current = undefined
           setConfigParams(undefined)
         }
       }
 
       try {
-        // 如果缓存中没有描述，尝试获取
         if (!cachedDescription) {
           if (cachedIsCustom) {
-            // 自定义节点：先检查缓存，没有才调用API
-            // 使用 getState() 获取最新的缓存，而不是依赖项
             const currentCustomNodeDetails = useNodeInfoStore.getState().customNodeDetails
             const cachedCustomNodeDetails = currentCustomNodeDetails[nodeType]
             if (cachedCustomNodeDetails?.description) {
@@ -196,7 +187,6 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ nodeId, edgeId }) => 
                 fetchingRef.current = false
               }
             } else {
-              // 缓存中没有，调用API获取
               try {
                 const customNodeInfo = await nodeApi.getCustomNode(nodeType)
                 if (cancelled) {
@@ -204,7 +194,6 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ nodeId, edgeId }) => 
                   return
                 }
                 
-                // 更新缓存
                 setCustomNodeDetails(nodeType, customNodeInfo)
                 
                 if (customNodeInfo?.description && !cancelled) {
@@ -217,11 +206,8 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ nodeId, edgeId }) => 
               }
             }
           } else {
-            // 内置节点：从节点类型列表中获取
-            // 使用 getState() 获取最新的节点类型列表，而不是依赖项
             const currentNodeTypes = useNodeInfoStore.getState().nodeTypes
             if (currentNodeTypes.length === 0) {
-              // 如果节点类型列表为空，尝试加载
               try {
                 const types = await nodeApi.getNodeTypes()
                 if (cancelled) {
@@ -240,7 +226,6 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ nodeId, edgeId }) => 
                 fetchingRef.current = false
               }
             } else {
-              // 从缓存中查找
               const foundNodeType = currentNodeTypes.find((nt: any) => nt.id === nodeType)
               if (!cancelled && foundNodeType?.description) {
                 setNodeDescription(foundNodeType.description)
@@ -263,21 +248,17 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ nodeId, edgeId }) => 
       cancelled = true
       fetchingRef.current = false
     }
-  }, [nodeId, nodeType, getNodeDescription, checkIsCustomNode, setCustomNodeDetails, setNodeTypes]) // 移除 customNodeDetails 和 nodeTypes，使用 getState() 获取最新值
+  }, [nodeId, nodeType, getNodeDescription, checkIsCustomNode, setCustomNodeDetails, setNodeTypes])
 
   useEffect(() => {
-    // 判断节点是否真正变化
     const currentNodeId = node?.id || null
     const nodeChanged = prevNodeIdRef.current !== currentNodeId || prevNodeIdRef.current !== nodeId
     
     if (nodeChanged) {
-      // 节点变化了，更新引用
       prevNodeIdRef.current = currentNodeId || nodeId
       
       if (node) {
-        // 只有当节点变化时才重置表单
         form.resetFields()
-        // 设置表单值
         form.setFieldsValue({
           id: node.id,
           type: node.data.type || node.type,
@@ -285,7 +266,6 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ nodeId, edgeId }) => 
           config: node.data.config || {},
         })
         
-        // 生成当前节点的 YAML 片段
         const nodeYaml = {
           id: node.id,
           type: node.data.type || node.type,
@@ -294,9 +274,9 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ nodeId, edgeId }) => 
         }
         setYamlContent(YamlService.stringify({ workflow: { name: '', nodes: [nodeYaml] } }))
       } else {
-        // 节点变为 null，清空表单
         form.resetFields()
         setYamlContent('')
+        configParamsRef.current = undefined
         setConfigParams(undefined)
       }
     }
@@ -304,20 +284,7 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ nodeId, edgeId }) => 
 
   const handleFormChange = (_changedValues: any, allValues: any) => {
     if (node) {
-      // config 现在是字典格式，直接使用
       const config = allValues.config || {}
-      
-      // 如果节点ID发生变化，需要特殊处理
-      if (_changedValues.id && _changedValues.id !== node.id) {
-        // 节点ID变化时，先验证格式和唯一性
-        const newNodeId = _changedValues.id.trim()
-        if (newNodeId && /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(newNodeId)) {
-          // 格式正确，但这里不立即更新，等用户点击保存时再更新
-          // 因为需要同时更新所有连接
-        }
-      }
-      
-      // 其他字段的实时更新
       updateNodeData(node.id, {
         label: allValues.label || node.data.label,
         config: config,
@@ -328,31 +295,25 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ nodeId, edgeId }) => 
   const handleSave = () => {
     form.validateFields().then((values) => {
       if (node) {
-        // config 现在是字典格式，直接使用
         const config = values.config || {}
         const newNodeId = values.id?.trim()
         
-        // 如果节点ID发生变化，使用updateNodeId来更新（会同步更新所有连接）
         if (newNodeId && newNodeId !== node.id) {
           const result = updateNodeId(node.id, newNodeId)
           if (!result.success) {
             message.error(result.error || '更新节点ID失败')
-            // 恢复表单中的节点ID
             form.setFieldsValue({ id: node.id })
             return
           }
           message.success('节点ID已更新，所有连接已同步更新')
           
-          // 通知App组件更新选中的节点ID（如果当前选中的是旧节点ID）
           if (nodeId === node.id) {
-            // 通过自定义事件通知父组件更新选中状态
             window.dispatchEvent(new CustomEvent('nodeIdUpdated', { 
               detail: { oldId: node.id, newId: newNodeId } 
             }))
           }
         }
         
-        // 更新其他字段
         updateNodeData(newNodeId || node.id, {
           label: values.label || node.data.label,
           config: config,
@@ -367,9 +328,7 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ nodeId, edgeId }) => 
     })
   }
 
-  // 如果选中了连接线，显示连接线信息
   if (edgeId) {
-    // 如果 connectionInfo 为 null，可能是找不到节点，但仍应显示基本信息
     if (!connectionInfo) {
       return (
         <div className="node-config-panel">
@@ -552,7 +511,6 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ nodeId, edgeId }) => 
     )
   }
 
-  // 如果没有选中连接线，显示节点信息
   if (!node) {
     return (
       <div className="node-config-panel">
@@ -562,10 +520,8 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ nodeId, edgeId }) => 
   }
 
   const handleNodeCreatorSuccess = () => {
-    // 节点定义已更新，所有实例已自动同步更新
     message.success('节点定义已更新，所有实例已同步')
     setNodeCreatorVisible(false)
-    // 触发节点列表刷新事件
     window.dispatchEvent(new CustomEvent('nodeCreated'))
   }
 
@@ -637,6 +593,7 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ nodeId, edgeId }) => 
                         placeholder="输入节点配置（JSON格式）"
                         configParams={configParams}
                         onChange={(config) => {
+                          form.setFieldsValue({ config })
                           updateNodeData(node.id, { config })
                         }}
                       />

@@ -38,6 +38,7 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
   const [dragDirection, setDragDirection] = useState<'up' | 'down' | null>(null)
+  const [customInputMode, setCustomInputMode] = useState<Set<number>>(new Set())
   const configFieldsRef = useRef<{ required: ConfigFieldDefinition[]; optional: ConfigFieldDefinition[] }>({ required: [], optional: [] })
   
   // 根据主题确定Monaco Editor的主题
@@ -113,10 +114,9 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
     const currentKeys = new Set(Object.keys(value || {}))
     const itemsArray: Array<{ key: string; value: any; isRequired?: boolean; fieldDef?: ConfigFieldDefinition }> = []
     
-    // 首先添加必填字段（如果不存在则创建）
+    // 首先添加必填字段
     configFields.required.forEach((field) => {
       if (currentKeys.has(field.fieldName)) {
-        // 已存在，使用现有值
         const val = value![field.fieldName]
         itemsArray.push({
           key: field.fieldName,
@@ -125,7 +125,6 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
           fieldDef: field,
         })
       } else {
-        // 不存在，创建新项（使用默认值或空值）
         const defaultValue = field.default !== undefined 
           ? (typeof field.default === 'string' ? field.default : JSON.stringify(field.default, null, 2))
           : ''
@@ -140,16 +139,33 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
     
     // 然后添加已存在的其他字段
     Object.entries(value || {}).forEach(([key, val]) => {
-      // 跳过已经在必填字段中处理的
       if (!configFields.required.find(f => f.fieldName === key)) {
         const fieldDef = configFields.optional.find(f => f.fieldName === key) || 
                         configFields.required.find(f => f.fieldName === key)
         itemsArray.push({
-      key,
-      value: typeof val === 'string' ? val : JSON.stringify(val, null, 2),
+          key,
+          value: typeof val === 'string' ? val : JSON.stringify(val, null, 2),
           isRequired: false,
           fieldDef,
         })
+      }
+    })
+    
+    // 保留当前items中正在编辑的自定义字段
+    items.forEach((item) => {
+      if (item.isRequired) return
+      
+      const existingIndex = itemsArray.findIndex(i => i.key === item.key)
+      
+      if (existingIndex === -1) {
+        itemsArray.push({
+          key: item.key || '',
+          value: item.value || '',
+          isRequired: false,
+          fieldDef: item.fieldDef,
+        })
+      } else if (item.value !== undefined && item.value !== null) {
+        itemsArray[existingIndex].value = item.value
       }
     })
     
@@ -160,12 +176,13 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
   const updateConfig = (newItems: Array<{ key: string; value: any }>) => {
     const config: Record<string, any> = {}
     newItems.forEach((item) => {
-      if (item.key.trim()) {
+      if (item.key && item.key.trim()) {
         // 尝试解析 JSON，如果失败则作为字符串
+        // 即使value是空字符串，也要保存key
         try {
           config[item.key] = JSON.parse(item.value)
         } catch {
-          config[item.key] = item.value
+          config[item.key] = item.value !== undefined && item.value !== null ? item.value : ''
         }
       }
     })
@@ -176,6 +193,13 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
     const newItems = [...items]
     newItems[index].key = newKey
     setItems(newItems)
+    if (!newKey) {
+      setCustomInputMode(prev => {
+        const next = new Set(prev)
+        next.delete(index)
+        return next
+      })
+    }
     updateConfig(newItems)
   }
 
@@ -188,27 +212,37 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
 
   const handleAddItem = (fieldName?: string) => {
     if (fieldName) {
-      // 从下拉选择添加已定义的字段
       const fieldDef = configFields.optional.find(f => f.fieldName === fieldName)
       const defaultValue = fieldDef?.default !== undefined 
         ? (typeof fieldDef.default === 'string' ? fieldDef.default : JSON.stringify(fieldDef.default, null, 2))
         : ''
-      setItems([...items, { key: fieldName, value: defaultValue, isRequired: false, fieldDef }])
+      const newItems = [...items, { key: fieldName, value: defaultValue, isRequired: false, fieldDef }]
+      setItems(newItems)
+      updateConfig(newItems)
     } else {
-      // 添加自定义字段
       setItems([...items, { key: '', value: '', isRequired: false }])
     }
   }
 
   const handleRemoveItem = (index: number) => {
     const item = items[index]
-    // 必填字段不能删除
     if (item.isRequired) {
       return
     }
     const newItems = items.filter((_, i) => i !== index)
     setItems(newItems)
     updateConfig(newItems)
+    setCustomInputMode(prev => {
+      const next = new Set<number>()
+      prev.forEach(idx => {
+        if (idx < index) {
+          next.add(idx)
+        } else if (idx > index) {
+          next.add(idx - 1)
+        }
+      })
+      return next
+    })
   }
 
   // 拖拽排序处理函数
@@ -339,19 +373,14 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
     setEditingContent('')
   }
 
-  // 当 Modal 打开时，阻止 Del 键事件冒泡，并支持 Ctrl+Enter 保存
   useEffect(() => {
     if (!editorModalVisible) {
       return
     }
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      // 检查事件目标
       const target = e.target as HTMLElement
       
-      // 优先检查是否在 Monaco Editor 中（Monaco Editor 使用特定的类名和结构）
-      // 使用更全面的检测方式，包括包装器和所有可能的 Monaco 元素
-      // 向上遍历 DOM 树检查所有父元素
       let currentCheck: HTMLElement | null = target
       let isInMonacoEditor = false
       
@@ -359,13 +388,11 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
         const classList = currentCheck.classList
         const className = currentCheck.className
         
-        // 检查类名中是否包含 monaco 相关字符串
         if (typeof className === 'string' && className.includes('monaco')) {
           isInMonacoEditor = true
           break
         }
         
-        // 检查特定的类名
         if (
           classList?.contains('monaco-editor') ||
           classList?.contains('monaco-editor-textarea') ||
@@ -378,7 +405,6 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
           break
         }
         
-        // 使用 closest 检查
         if (
           currentCheck.closest('.monaco-editor') !== null ||
           currentCheck.closest('.monaco-editor-wrapper') !== null
@@ -390,17 +416,12 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
         currentCheck = currentCheck.parentElement
       }
       
-      // 如果在 Monaco Editor 中，完全不拦截任何键盘事件（让编辑器正常处理所有输入，包括空格）
-      // 这个检查要放在最前面，优先于其他检查
       if (isInMonacoEditor) {
-        // 不调用 preventDefault 或 stopPropagation，让事件正常传播到编辑器
         return
       }
       
-      // 检查是否在输入框、文本区域或可编辑内容中
       const isInInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable
       
-      // 检查是否在 Modal 内部（通过查找最近的 modal-content 父元素）
       let currentElement: HTMLElement | null = target
       let isInModal = false
       while (currentElement) {
@@ -412,27 +433,20 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
         currentElement = currentElement.parentElement
       }
       
-      // 如果不在 Modal 内，不处理
       if (!isInModal) {
         return
       }
 
-      // 如果是在输入框、文本区域或可编辑内容中，阻止事件冒泡到父组件
       if (isInInput) {
-        // 当按下 Del 或 Backspace 键时，阻止事件冒泡
-        // 这样就不会触发父组件的删除节点操作
         if (e.key === 'Delete' || e.key === 'Backspace') {
           e.stopPropagation()
-          // 不阻止默认行为，让编辑器正常处理删除操作
           return
         }
       }
 
-      // Ctrl+Enter 或 Cmd+Enter (Mac) 保存
       if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
         e.preventDefault()
         e.stopPropagation()
-        // 直接调用保存逻辑，确保使用最新的状态
         if (editingIndex !== null) {
           const newItems = [...items]
           if (editingIndex >= 0 && editingIndex < newItems.length) {
@@ -448,9 +462,6 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
       }
     }
 
-    // 使用普通模式（非 capture）添加事件监听器
-    // 这样可以确保 Monaco Editor 先处理键盘事件
-    // 只有当事件没有被编辑器处理时，才会到达这里
     document.addEventListener('keydown', handleKeyDown, false)
     
     return () => {
@@ -462,13 +473,11 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
     <div className="config-editor">
       <div className="config-editor-items">
         {items.map((item, index) => {
-          // 判断是否在当前 item 的上方或下方显示插入线
           const showInsertLineAbove = dragOverIndex === index && dragDirection === 'up'
           const showInsertLineBelow = dragOverIndex === index && dragDirection === 'down'
           
           return (
           <React.Fragment key={index}>
-            {/* 向上拖动时，在当前 item 上方显示插入线 */}
             {showInsertLineAbove && (
               <div className="config-editor-insert-line"></div>
             )}
@@ -528,34 +537,122 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
                     title={item.fieldDef?.description || ''}
                   />
                 ) : (
-                  // 自定义字段：使用AutoComplete，支持从已定义字段中选择或输入新字段名
+                  // 自定义字段：优先使用Select下拉选择模板中的key，也支持输入自定义key
                   <div
                     onDragStart={(e: React.DragEvent) => e.stopPropagation()}
                     onDragOver={(e: React.DragEvent) => e.stopPropagation()}
                   >
-                    <AutoComplete
-                  value={item.key}
-                      onChange={(val) => handleKeyChange(index, val)}
-                  style={{ width: '100%' }}
-                      placeholder="配置项名称"
-                      options={configFields.optional
-                        .filter(f => !items.some(item => item.key === f.fieldName && item !== items[index]))
-                        .map(f => ({
-                          value: f.fieldName,
-                          label: (
-                            <div>
-                              <div>{f.fieldName}</div>
-                              {f.description && (
-                                <div style={{ fontSize: '12px', color: '#8c8c8c' }}>{f.description}</div>
-                              )}
-                            </div>
-                          ),
-                        }))
+                    {(() => {
+                      // 获取所有可选的模板字段
+                      const allOptionalFields = configFields.optional
+                      // 获取未使用的模板字段
+                      const availableTemplateFields = allOptionalFields.filter(
+                        f => !items.some(item => item.key === f.fieldName && item !== items[index])
+                      )
+                      // 检查当前字段是否已被使用（用于标记）
+                      const isFieldUsed = (fieldName: string) => 
+                        items.some(item => item.key === fieldName && item !== items[index])
+                      
+                      // 如果key为空且存在配置模板字段，且不在自定义输入模式，优先显示Select下拉选择器
+                      if (!item.key && allOptionalFields.length > 0 && !customInputMode.has(index)) {
+                        return (
+                          <Select
+                            value={item.key || undefined}
+                            onChange={(val) => {
+                              if (val === '__custom__') {
+                                // 选择"自定义"后，切换到自定义输入模式
+                                setCustomInputMode(prev => new Set(prev).add(index))
+                              } else {
+                                handleKeyChange(index, val)
+                                // 选择模板字段后，退出自定义输入模式
+                                setCustomInputMode(prev => {
+                                  const next = new Set(prev)
+                                  next.delete(index)
+                                  return next
+                                })
+                              }
+                            }}
+                            style={{ width: '100%' }}
+                            placeholder="选择配置项"
+                            showSearch
+                            allowClear
+                            filterOption={(inputValue, option) => {
+                              if (option?.value === '__custom__') return true
+                              const label = option?.label
+                              if (typeof label === 'string') {
+                                return label.toUpperCase().indexOf(inputValue.toUpperCase()) !== -1
+                              }
+                              if (label && typeof label === 'object' && 'props' in label) {
+                                const text = label.props?.children?.[0]?.props?.children || ''
+                                return text.toUpperCase().indexOf(inputValue.toUpperCase()) !== -1
+                              }
+                              return false
+                            }}
+                            dropdownMatchSelectWidth={false}
+                          >
+                            {allOptionalFields.map(f => {
+                              const used = isFieldUsed(f.fieldName)
+                              return (
+                                <Option 
+                                  key={f.fieldName} 
+                                  value={f.fieldName}
+                                  disabled={false}
+                                >
+                                  <div>
+                                    <div style={{ color: 'var(--theme-text, #262626)' }}>
+                                      {f.fieldName}
+                                      {used && (
+                                        <span style={{ marginLeft: 8, fontSize: '12px', color: 'var(--theme-textTertiary, #8c8c8c)' }}>
+                                          (已使用)
+                                        </span>
+                                      )}
+                                    </div>
+                                    {f.description && (
+                                      <div style={{ fontSize: '12px', color: 'var(--theme-textSecondary, #595959)' }}>{f.description}</div>
+                                    )}
+                                  </div>
+                                </Option>
+                              )
+                            })}
+                            <Option value="__custom__">+ 自定义字段</Option>
+                          </Select>
+                        )
                       }
-                      filterOption={(inputValue, option) =>
-                        option!.value.toUpperCase().indexOf(inputValue.toUpperCase()) !== -1
-                      }
-                    />
+                      
+                      // 否则使用AutoComplete，支持从模板中选择或输入自定义key
+                      return (
+                        <AutoComplete
+                          value={item.key}
+                          onChange={(val) => {
+                            handleKeyChange(index, val)
+                            // 当输入了值后，如果值在模板中，退出自定义输入模式
+                            if (val && allOptionalFields.some(f => f.fieldName === val)) {
+                              setCustomInputMode(prev => {
+                                const next = new Set(prev)
+                                next.delete(index)
+                                return next
+                              })
+                            }
+                          }}
+                          style={{ width: '100%' }}
+                          placeholder={customInputMode.has(index) ? "输入自定义配置项名称" : "配置项名称（可从模板中选择）"}
+                          options={availableTemplateFields.map(f => ({
+                            value: f.fieldName,
+                            label: (
+                              <div>
+                                <div style={{ color: 'var(--theme-text, #262626)' }}>{f.fieldName}</div>
+                                {f.description && (
+                                  <div style={{ fontSize: '12px', color: 'var(--theme-textSecondary, #595959)' }}>{f.description}</div>
+                                )}
+                              </div>
+                            ),
+                          }))}
+                          filterOption={(inputValue, option) =>
+                            option!.value.toUpperCase().indexOf(inputValue.toUpperCase()) !== -1
+                          }
+                        />
+                      )
+                    })()}
                   </div>
                 )}
               </div>
@@ -600,7 +697,6 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
               </div>
             </div>
           </div>
-          {/* 向下拖动时，在当前 item 下方显示插入线 */}
           {showInsertLineBelow && (
             <div className="config-editor-insert-line"></div>
           )}
@@ -626,9 +722,9 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
             .map(f => (
               <Option key={f.fieldName} value={f.fieldName}>
                 <div>
-                  <div>{f.fieldName}</div>
+                  <div style={{ color: 'var(--theme-text, #262626)' }}>{f.fieldName}</div>
                   {f.description && (
-                    <div style={{ fontSize: '12px', color: '#8c8c8c' }}>{f.description}</div>
+                    <div style={{ fontSize: '12px', color: 'var(--theme-textSecondary, #595959)' }}>{f.description}</div>
                   )}
                 </div>
               </Option>

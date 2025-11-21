@@ -192,3 +192,16 @@
   overflow: hidden;
 }
 
+/* Select 下拉选项文字颜色 */
+.config-editor .ant-select-dropdown .ant-select-item {
+  color: var(--theme-text, #262626) !important;
+}
+
+.config-editor .ant-select-dropdown .ant-select-item-option-selected {
+  color: var(--theme-text, #262626) !important;
+}
+
+.config-editor .ant-select-dropdown .ant-select-item-option-active {
+  color: var(--theme-text, #262626) !important;
+}
+
