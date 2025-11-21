@@ -40,6 +40,7 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
   const [dragDirection, setDragDirection] = useState<'up' | 'down' | null>(null)
   const [customInputMode, setCustomInputMode] = useState<Set<number>>(new Set())
   const configFieldsRef = useRef<{ required: ConfigFieldDefinition[]; optional: ConfigFieldDefinition[] }>({ required: [], optional: [] })
+  const prevConfigParamsRef = useRef<Record<string, FieldSchemaDef> | undefined>(undefined)
   
   // 根据主题确定Monaco Editor的主题
   const editorTheme = theme === 'dark' ? 'vs-dark' : 'vs'
@@ -87,6 +88,11 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
     const prevConfigFields = configFieldsRef.current
     configFieldsRef.current = configFields
     
+    // 如果 configParams 不存在，不添加任何必填字段
+    if (!configParams) {
+      return
+    }
+    
     // 检查是否有新的必填字段需要添加
     const newValue: Record<string, any> = { ...value }
     let hasNewRequiredFields = false
@@ -104,15 +110,22 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
     })
     
     // 只有当configFields真正变化（新增了必填字段）时才更新value
-    if (hasNewRequiredFields && prevConfigFields.required.length !== configFields.required.length) {
+    // 并且只有在必填字段数量增加时才更新（避免在字段减少时错误更新）
+    if (hasNewRequiredFields && prevConfigFields.required.length < configFields.required.length) {
       onChange?.(newValue)
     }
-  }, [configFields, onChange, value])
+  }, [configFields, onChange, value, configParams])
 
   // 将字典转换为数组格式，并确保必填字段存在
   useEffect(() => {
     const currentKeys = new Set(Object.keys(value || {}))
     const itemsArray: Array<{ key: string; value: any; isRequired?: boolean; fieldDef?: ConfigFieldDefinition }> = []
+    
+    // 获取所有有效的字段名（必填和可选）
+    const validFieldNames = new Set([
+      ...configFields.required.map(f => f.fieldName),
+      ...configFields.optional.map(f => f.fieldName)
+    ])
     
     // 首先添加必填字段
     configFields.required.forEach((field) => {
@@ -137,21 +150,38 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
       }
     })
     
-    // 然后添加已存在的其他字段
+    // 然后添加已存在的其他字段（只添加有效的字段，过滤掉不属于当前节点的字段）
     Object.entries(value || {}).forEach(([key, val]) => {
-      if (!configFields.required.find(f => f.fieldName === key)) {
-        const fieldDef = configFields.optional.find(f => f.fieldName === key) || 
-                        configFields.required.find(f => f.fieldName === key)
+      // 跳过必填字段（已经在上面处理了）
+      if (configFields.required.find(f => f.fieldName === key)) {
+        return
+      }
+      
+      // 如果 configParams 存在，只保留在有效字段列表中的字段
+      if (configParams) {
+        if (validFieldNames.has(key)) {
+          const fieldDef = configFields.optional.find(f => f.fieldName === key) || 
+                          configFields.required.find(f => f.fieldName === key)
+          itemsArray.push({
+            key,
+            value: typeof val === 'string' ? val : JSON.stringify(val, null, 2),
+            isRequired: false,
+            fieldDef,
+          })
+        }
+      } else {
+        // 没有 configParams 时，保留所有非必填字段（自定义字段）
+        // 注意：这里不保留必填字段，因为当前节点没有必填字段定义
         itemsArray.push({
           key,
           value: typeof val === 'string' ? val : JSON.stringify(val, null, 2),
           isRequired: false,
-          fieldDef,
+          fieldDef: undefined,
         })
       }
     })
     
-    // 保留当前items中正在编辑的自定义字段
+    // 保留当前items中正在编辑的自定义字段（只保留不在必填字段中的）
     items.forEach((item) => {
       if (item.isRequired) return
       
@@ -169,8 +199,60 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
       }
     })
     
+    // 清理掉不属于当前节点的字段
+    // 如果 configParams 存在，只保留在有效字段列表中的字段
+    // 如果 configParams 不存在，清理掉所有必填字段（因为当前节点没有必填字段定义）
+    const configParamsChanged = prevConfigParamsRef.current !== configParams
+    prevConfigParamsRef.current = configParams
+    
+    const cleanedItems = itemsArray.filter(item => {
+      // 保留空的自定义字段（正在编辑中）
+      if (!item.key) return true
+      
+      if (configParams) {
+        // 有 configParams 时，保留必填字段和有效字段
+        if (item.isRequired) return true
+        if (validFieldNames.has(item.key)) return true
+        return false
+      } else {
+        // 没有 configParams 时，不保留必填字段（因为当前节点没有必填字段定义）
+        if (item.isRequired) return false
+        // 保留所有非必填字段（自定义字段）
+        return true
+      }
+    })
+    
+    // 只在 configParams 变化时才检查是否需要清理字段
+    if (configParamsChanged) {
+      // 检查是否有字段被过滤掉
+      const removedKeys = itemsArray
+        .filter(item => !cleanedItems.includes(item))
+        .map(item => item.key)
+        .filter(key => key && key.trim())
+      
+      // 如果清理后字段有变化，更新 value
+      if (removedKeys.length > 0) {
+        const cleanedConfig: Record<string, any> = {}
+        cleanedItems.forEach((item) => {
+          if (item.key && item.key.trim()) {
+            try {
+              cleanedConfig[item.key] = JSON.parse(item.value)
+            } catch {
+              cleanedConfig[item.key] = item.value !== undefined && item.value !== null ? item.value : ''
+            }
+          }
+        })
+        // 使用 setTimeout 避免在 useEffect 中直接调用 onChange 导致无限循环
+        setTimeout(() => {
+          onChange?.(cleanedConfig)
+        }, 0)
+        setItems(cleanedItems)
+        return
+      }
+    }
+    
     setItems(itemsArray)
-  }, [value, configFields])
+  }, [value, configFields, configParams, onChange])
 
   // 将数组格式转换为字典
   const updateConfig = (newItems: Array<{ key: string; value: any }>) => {

@@ -120,6 +120,12 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ nodeId, edgeId }) => 
       return
     }
 
+    // 如果节点类型变化，立即清空 configParams，避免显示上一个节点的参数
+    if (nodeType !== prevNodeTypeRef.current) {
+      configParamsRef.current = undefined
+      setConfigParams(undefined)
+    }
+
     const checkNodeInfo = async () => {
       if (!nodeId || !nodeType) {
         setIsCustomNode(false)
@@ -127,6 +133,8 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ nodeId, edgeId }) => 
         setNodeDescription('')
         prevNodeTypeRef.current = null
         fetchingRef.current = false
+        configParamsRef.current = undefined
+        setConfigParams(undefined)
         return
       }
 
@@ -252,10 +260,18 @@ const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ nodeId, edgeId }) => 
 
   useEffect(() => {
     const currentNodeId = node?.id || null
+    const currentNodeType = node?.data?.type || node?.type
     const nodeChanged = prevNodeIdRef.current !== currentNodeId || prevNodeIdRef.current !== nodeId
+    const nodeTypeChanged = prevNodeTypeRef.current !== currentNodeType
     
     if (nodeChanged) {
       prevNodeIdRef.current = currentNodeId || nodeId
+      
+      // 如果节点类型变化，立即清空 configParams，避免显示上一个节点的参数
+      if (nodeTypeChanged && currentNodeType) {
+        configParamsRef.current = undefined
+        setConfigParams(undefined)
+      }
       
       if (node) {
         form.resetFields()
