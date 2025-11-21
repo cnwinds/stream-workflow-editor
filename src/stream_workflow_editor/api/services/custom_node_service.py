@@ -817,6 +817,234 @@ def update_custom_node_parameters(
     return node_entry
 
 
+def update_custom_node_config_params(
+    node_id: str,
+    config_schema: Dict[str, Any]
+) -> Dict[str, Any]:
+    """更新自定义节点的配置参数定义（只更新 CONFIG_PARAMS 部分，保留其他代码）
+    
+    Args:
+        node_id: 注册表ID或节点类型
+        config_schema: 新的配置参数（字典格式，使用 FieldSchema 格式）
+    
+    Returns:
+        更新后的节点信息
+    """
+    import re
+    
+    ensure_custom_nodes_dir()
+    
+    # 加载注册表
+    registry = load_registry()
+    
+    # 查找节点（通过 id，id 就是 register 名字）
+    node_entry = None
+    for node in registry.get("custom_nodes", []):
+        if node.get("id") == node_id:
+            node_entry = node
+            break
+    
+    if not node_entry:
+        raise ValueError(f"节点不存在: {node_id}")
+    
+    python_file = node_entry.get("pythonFile")
+    python_path = get_custom_nodes_dir() / python_file
+    
+    if not python_path.exists():
+        raise ValueError(f"Python文件不存在: {python_path}")
+    
+    # 读取当前代码
+    with open(python_path, 'r', encoding='utf-8') as f:
+        current_code = f.read()
+    
+    # 生成新的 CONFIG_PARAMS 代码（使用 FieldSchema 格式）
+    config_params_lines = []
+    for param_name, field_def in config_schema.items():
+        if isinstance(field_def, str):
+            # 简单格式: "string" -> FieldSchema({"type": "string"})
+            # 使用单引号以匹配用户期望的格式
+            type_str = repr(field_def).replace('"', "'") if isinstance(field_def, str) else repr(field_def)
+            config_params_lines.append(
+                f'        "{param_name}": FieldSchema({{\n'
+                f"            'type': {type_str}\n"
+                f'        }})'
+            )
+        elif isinstance(field_def, dict):
+            # 详细格式: {"type": "string", "required": True, "description": "...", "default": "..."}
+            # 使用单引号以匹配用户期望的格式
+            field_dict_lines = []
+            if "type" in field_def:
+                type_val = field_def["type"]
+                type_str = repr(type_val).replace('"', "'") if isinstance(type_val, str) else repr(type_val)
+                field_dict_lines.append(f"            'type': {type_str}")
+            if field_def.get("required", False):
+                field_dict_lines.append("            'required': True")
+            if "description" in field_def:
+                desc_val = field_def["description"]
+                desc_str = repr(desc_val).replace('"', "'") if isinstance(desc_val, str) else repr(desc_val)
+                field_dict_lines.append(f"            'description': {desc_str}")
+            if "default" in field_def:
+                default_val = field_def["default"]
+                if isinstance(default_val, str):
+                    default_str = repr(default_val).replace('"', "'")
+                    field_dict_lines.append(f"            'default': {default_str}")
+                elif isinstance(default_val, bool):
+                    field_dict_lines.append(f"            'default': {str(default_val)}")
+                elif default_val is None:
+                    field_dict_lines.append("            'default': None")
+                else:
+                    field_dict_lines.append(f"            'default': {repr(default_val)}")
+            
+            field_dict_str = ',\n'.join(field_dict_lines)
+            config_params_lines.append(
+                f'        "{param_name}": FieldSchema({{\n'
+                f'{field_dict_str}\n'
+                f'        }})'
+            )
+        else:
+            # 默认格式
+            config_params_lines.append(
+                f'        "{param_name}": FieldSchema({{\n'
+                f"            'type': 'any'\n"
+                f'        }})'
+            )
+    
+    new_config_params_code = ',\n'.join(config_params_lines)
+    
+    # 更新 CONFIG_PARAMS
+    # 使用更智能的方法：找到 CONFIG_PARAMS = { 的位置，然后找到匹配的 }
+    # 需要考虑字符串中的大括号
+    config_match = re.search(r'(\s*#\s*配置参数定义.*?\n)?\s*CONFIG_PARAMS\s*=\s*\{', current_code)
+    if config_match:
+        start_pos = config_match.end()
+        brace_count = 1
+        end_pos = start_pos
+        in_string = False
+        string_char = ''
+        
+        # 找到匹配的结束括号，考虑字符串中的大括号
+        for i in range(start_pos, len(current_code)):
+            char = current_code[i]
+            prev_char = current_code[i - 1] if i > 0 else ''
+            
+            # 处理字符串
+            if not in_string and (char == '"' or char == "'"):
+                in_string = True
+                string_char = char
+            elif in_string and char == string_char and prev_char != '\\':
+                in_string = False
+            
+            # 只有在不在字符串中时才计算大括号
+            if not in_string:
+                if char == '{':
+                    brace_count += 1
+                elif char == '}':
+                    brace_count -= 1
+                    if brace_count == 0:
+                        end_pos = i
+                        break
+        
+        # 替换整个 CONFIG_PARAMS 定义
+        before = current_code[:config_match.start()]
+        after = current_code[end_pos + 1:]
+        if config_schema:
+            current_code = f'{before}    # 配置参数定义（使用 FieldSchema 格式）\n    CONFIG_PARAMS = {{\n{new_config_params_code}\n    }}{after}'
+        else:
+            current_code = f'{before}    # 配置参数定义（使用 FieldSchema 格式）\n    CONFIG_PARAMS = {{}}{after}'
+    else:
+        # 如果找不到 CONFIG_PARAMS，在 OUTPUT_PARAMS 之后添加
+        output_match = re.search(r'(\s*#\s*输出参数定义\s*\n)?\s*OUTPUT_PARAMS\s*=\s*\{', current_code)
+        if output_match:
+            # 找到 OUTPUT_PARAMS 的结束位置
+            start_pos = output_match.end()
+            brace_count = 1
+            end_pos = start_pos
+            in_string = False
+            string_char = ''
+            
+            for i in range(start_pos, len(current_code)):
+                char = current_code[i]
+                prev_char = current_code[i - 1] if i > 0 else ''
+                
+                if not in_string and (char == '"' or char == "'"):
+                    in_string = True
+                    string_char = char
+                elif in_string and char == string_char and prev_char != '\\':
+                    in_string = False
+                
+                if not in_string:
+                    if char == '{':
+                        brace_count += 1
+                    elif char == '}':
+                        brace_count -= 1
+                        if brace_count == 0:
+                            end_pos = i
+                            break
+            
+            # 在 OUTPUT_PARAMS 之后插入 CONFIG_PARAMS
+            before = current_code[:end_pos + 1]
+            after = current_code[end_pos + 1:]
+            if config_schema:
+                current_code = f'{before}\n    \n    # 配置参数定义（使用 FieldSchema 格式）\n    CONFIG_PARAMS = {{\n{new_config_params_code}\n    }}{after}'
+            else:
+                current_code = f'{before}\n    \n    # 配置参数定义（使用 FieldSchema 格式）\n    CONFIG_PARAMS = {{}}{after}'
+        else:
+            # 如果连 OUTPUT_PARAMS 都找不到，在类定义之后添加
+            class_match = re.search(r'class\s+\w+\(Node\):', current_code)
+            if class_match:
+                # 找到类定义的第一个方法或属性之后
+                run_match = re.search(r'\s+async def run\(', current_code)
+                if run_match:
+                    before = current_code[:run_match.start()]
+                    after = current_code[run_match.start():]
+                    if config_schema:
+                        current_code = f'{before}\n    \n    # 配置参数定义（使用 FieldSchema 格式）\n    CONFIG_PARAMS = {{\n{new_config_params_code}\n    }}{after}'
+                    else:
+                        current_code = f'{before}\n    \n    # 配置参数定义（使用 FieldSchema 格式）\n    CONFIG_PARAMS = {{}}{after}'
+                else:
+                    # 如果找不到 run 方法，在类定义末尾添加
+                    indent_match = re.search(r'class\s+\w+\(Node\):\s*\n(\s+)', current_code)
+                    if indent_match:
+                        indent = indent_match.group(1)
+                        before = current_code[:class_match.end()]
+                        after = current_code[class_match.end():]
+                        if config_schema:
+                            current_code = f'{before}\n{indent}# 配置参数定义（使用 FieldSchema 格式）\n{indent}CONFIG_PARAMS = {{\n{new_config_params_code}\n{indent}}}{after}'
+                        else:
+                            current_code = f'{before}\n{indent}# 配置参数定义（使用 FieldSchema 格式）\n{indent}CONFIG_PARAMS = {{}}{after}'
+    
+    # 确保导入了 FieldSchema
+    if 'from stream_workflow.core.parameter import FieldSchema' not in current_code:
+        # 在 import 语句之后添加
+        import_match = re.search(r'from stream_workflow\.core import.*?register_node', current_code)
+        if import_match:
+            before = current_code[:import_match.end()]
+            after = current_code[import_match.end():]
+            current_code = f'{before}\nfrom stream_workflow.core.parameter import FieldSchema{after}'
+    
+    # 保存更新后的代码
+    with open(python_path, 'w', encoding='utf-8') as f:
+        f.write(current_code)
+    
+    # 更新注册表
+    node_entry["updatedAt"] = datetime.utcnow().isoformat() + "Z"
+    node_entry["mtime"] = python_path.stat().st_mtime  # 更新文件修改时间
+    save_registry(registry)
+    
+    # 重新加载自定义节点模块
+    try:
+        import sys
+        custom_nodes_module = sys.modules.get("custom_nodes")
+        if custom_nodes_module:
+            reload_func = getattr(custom_nodes_module, "reload_custom_nodes", None)
+            if reload_func:
+                reload_func()
+    except Exception as e:
+        logger.warning(f"重新加载自定义节点失败: {e}", exc_info=True)
+    
+    return node_entry
+
+
 def delete_custom_node(node_id: str) -> bool:
     """删除自定义节点
     

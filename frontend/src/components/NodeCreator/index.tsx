@@ -774,17 +774,74 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
         const hasCategoryChange = originalData && originalData.category !== values.category
         const hasExecutionModeChange = originalData && originalData.executionMode !== values.executionMode
         const hasColorChange = originalData && originalData.color !== (values.color || '#1890ff')
-        const hasConfigParamsChange = originalData && JSON.stringify(originalData.configParams) !== JSON.stringify(configParamsDict)
+        // 更健壮的配置参数比较：规范化后再比较
+        const normalizeConfigParams = (params: Record<string, any> | undefined) => {
+          if (!params) return {}
+          const normalized: Record<string, any> = {}
+          Object.keys(params).sort().forEach(key => {
+            const value = params[key]
+            if (typeof value === 'object' && value !== null) {
+              // 对对象进行排序
+              const sorted: Record<string, any> = {}
+              Object.keys(value).sort().forEach(k => {
+                sorted[k] = value[k]
+              })
+              normalized[key] = sorted
+            } else {
+              normalized[key] = value
+            }
+          })
+          return normalized
+        }
+        const hasConfigParamsChange = originalData && 
+          JSON.stringify(normalizeConfigParams(originalData.configParams)) !== 
+          JSON.stringify(normalizeConfigParams(configParamsDict))
         const hasInputsChange = originalData && JSON.stringify(originalData.inputs) !== JSON.stringify(inputsDict)
         const hasOutputsChange = originalData && JSON.stringify(originalData.outputs) !== JSON.stringify(outputsDict)
         const hasCodeChange = codeManuallyModified || (showCodeEditor && pythonCode !== originalPythonCode)
         
-        // 如果只有参数（inputs/outputs/configParams）变化，且代码没有被手动修改，使用参数更新接口
+        // 如果只有参数（inputs/outputs）变化，且代码没有被手动修改，使用参数更新接口
         const onlyParametersChanged = !hasNameChange && !hasDescriptionChange && !hasCategoryChange && 
                                      !hasExecutionModeChange && !hasColorChange && !hasConfigParamsChange &&
                                      !hasCodeChange && (hasInputsChange || hasOutputsChange)
         
-        if (onlyParametersChanged) {
+        // 如果只有配置参数变化，使用配置参数更新接口（保留所有代码，只更新 CONFIG_PARAMS）
+        // 注意：即使代码被手动修改了，也应该使用配置参数更新接口，因为它会保留所有代码
+        const onlyConfigParamsChanged = !hasNameChange && !hasDescriptionChange && !hasCategoryChange && 
+                                       !hasExecutionModeChange && !hasColorChange && !hasInputsChange &&
+                                       !hasOutputsChange && hasConfigParamsChange
+        
+        console.log('更新检查:', {
+          hasNameChange,
+          hasDescriptionChange,
+          hasCategoryChange,
+          hasExecutionModeChange,
+          hasColorChange,
+          hasConfigParamsChange,
+          hasInputsChange,
+          hasOutputsChange,
+          hasCodeChange,
+          onlyConfigParamsChanged,
+          onlyParametersChanged
+        })
+        
+        if (onlyConfigParamsChanged) {
+          // 只更新配置参数，使用新接口，保留其他代码
+          console.log('使用配置参数更新接口，保留所有代码')
+          console.log('配置参数:', configParamsDict)
+          await nodeApi.updateCustomNodeConfigParams(editingNodeId, {
+            configParams: configParamsDict,
+          })
+          
+          // 更新所有使用该节点类型的实例
+          updateNodeTypeInstances(editingNodeId, {
+            configParams: configParamsDict,
+          })
+          
+          message.success('配置参数更新成功（已保留您的代码，所有实例已同步更新）')
+          onSuccess()
+          return
+        } else if (onlyParametersChanged) {
           // 只更新参数，使用新接口，保留其他代码
           await nodeApi.updateCustomNodeParameters(editingNodeId, {
             inputs: inputsDict,
@@ -823,8 +880,35 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
               finalPythonCode = pythonCode
               console.log('使用手动修改的代码')
             } else {
-              // 如果代码没有被手动修改，根据新参数生成代码
-              // 这样参数的变化会反映到代码中
+              // 如果代码没有被手动修改，优先使用当前代码（保留原有代码）
+              // 只有在代码不存在时才生成新代码
+              if (pythonCode && pythonCode.trim()) {
+                finalPythonCode = pythonCode
+                console.log('使用当前代码（保留原有代码）')
+              } else {
+                // 如果代码不存在，根据新参数生成代码
+                const generatedCode = nodeGenerator.generateNodeCode({
+                  nodeId: values.nodeId,
+                  name: values.name,
+                  description: values.description || "",
+                  category: values.category,
+                  executionMode: values.executionMode,
+                  color: values.color,
+                  inputs: inputsDict,
+                  outputs: outputsDict,
+                  configParams: configParamsDict,
+                })
+                finalPythonCode = generatedCode
+                console.log('代码不存在，生成新代码')
+              }
+            }
+          } else {
+            // 如果没有显示代码编辑器，尝试获取当前代码，如果不存在则生成新代码
+            if (originalPythonCode && originalPythonCode.trim()) {
+              finalPythonCode = originalPythonCode
+              console.log('使用原始代码（保留原有代码）')
+            } else {
+              // 如果代码不存在，根据新参数生成代码
               const generatedCode = nodeGenerator.generateNodeCode({
                 nodeId: values.nodeId,
                 name: values.name,
@@ -837,23 +921,8 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
                 configParams: configParamsDict,
               })
               finalPythonCode = generatedCode
-              console.log('代码未被手动修改，使用新生成的代码')
+              console.log('代码不存在，生成新代码')
             }
-          } else {
-            // 如果没有显示代码编辑器，根据新参数生成代码
-            const generatedCode = nodeGenerator.generateNodeCode({
-              nodeId: values.nodeId,
-              name: values.name,
-              description: values.description || "",
-              category: values.category,
-              executionMode: values.executionMode,
-              color: values.color,
-              inputs: inputsDict,
-              outputs: outputsDict,
-              configParams: configParamsDict,
-            })
-            finalPythonCode = generatedCode
-            console.log('没有显示代码编辑器，生成新代码')
           }
 
           const request: CreateNodeRequest = {

@@ -11,6 +11,7 @@ from ..services.custom_node_service import (
     update_custom_node,
     update_custom_node_full,
     update_custom_node_parameters,
+    update_custom_node_config_params,
     delete_custom_node,
     list_custom_nodes,
     get_node_code,
@@ -278,6 +279,33 @@ async def update_custom_node_parameters_endpoint(
     except Exception as e:
         logger.error(f"更新节点参数失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"更新节点参数失败: {str(e)}")
+
+
+class UpdateNodeConfigParamsRequest(BaseModel):
+    """更新节点配置参数请求"""
+    configParams: Dict[str, Any]  # 配置参数，使用 FieldSchema 格式
+
+
+@router.put("/custom/{node_id}/config-params")
+async def update_custom_node_config_params_endpoint(
+    node_id: str,
+    request: UpdateNodeConfigParamsRequest
+):
+    """更新自定义节点的配置参数定义（只更新 CONFIG_PARAMS 部分，保留其他代码）"""
+    try:
+        # 更新节点配置参数
+        node_entry = update_custom_node_config_params(
+            node_id=node_id,
+            config_schema=request.configParams or {}
+        )
+        
+        logger.info(f"节点 {node_id} 的配置参数定义更新成功")
+        return {"message": "配置参数定义更新成功", "node": node_entry}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"更新节点配置参数失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"更新节点配置参数失败: {str(e)}")
 
 
 @router.put("/custom/{node_id}/full")

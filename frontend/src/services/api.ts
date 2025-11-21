@@ -166,6 +166,14 @@ export const nodeApi = {
     return response.data
   },
 
+  // 更新自定义节点的配置参数定义（只更新 CONFIG_PARAMS 部分，保留其他代码）
+  updateCustomNodeConfigParams: async (nodeId: string, request: {
+    configParams: Record<string, any>
+  }) => {
+    const response = await api.put(`/nodes/custom/${nodeId}/config-params`, request)
+    return response.data
+  },
+
   // 删除自定义节点
   deleteCustomNode: async (nodeId: string) => {
     const response = await api.delete(`/nodes/custom/${nodeId}`)

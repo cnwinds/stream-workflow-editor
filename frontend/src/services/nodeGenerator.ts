@@ -58,11 +58,40 @@ export const nodeGenerator = {
       ? Object.entries(configParams)
           .map(([paramName, fieldDef], index, arr) => {
             // FieldSchema 可以是字符串（简单格式）或对象（详细格式）
-            const fieldDefStr = typeof fieldDef === 'string' 
-              ? JSON.stringify(fieldDef)
-              : JSON.stringify(fieldDef)
             const comma = index < arr.length - 1 ? ',' : ''
-            return `        "${paramName}": ${fieldDefStr}${comma}`
+            if (typeof fieldDef === 'string') {
+              // 简单格式: "string" -> FieldSchema({'type': 'string'})
+              return `        "${paramName}": FieldSchema({\n            'type': ${JSON.stringify(fieldDef).replace(/"/g, "'")}\n        })${comma}`
+            } else if (typeof fieldDef === 'object' && fieldDef !== null) {
+              // 详细格式: {"type": "string", "required": True, "description": "...", "default": "..."}
+              const fieldDictLines: string[] = []
+              if (fieldDef.type !== undefined) {
+                const typeStr = typeof fieldDef.type === 'string' 
+                  ? JSON.stringify(fieldDef.type).replace(/"/g, "'")
+                  : JSON.stringify(fieldDef.type)
+                fieldDictLines.push(`            'type': ${typeStr}`)
+              }
+              if (fieldDef.required === true) {
+                fieldDictLines.push(`            'required': True`)
+              }
+              if (fieldDef.description !== undefined) {
+                const descStr = typeof fieldDef.description === 'string'
+                  ? JSON.stringify(fieldDef.description).replace(/"/g, "'")
+                  : JSON.stringify(fieldDef.description)
+                fieldDictLines.push(`            'description': ${descStr}`)
+              }
+              if (fieldDef.default !== undefined) {
+                const defaultStr = typeof fieldDef.default === 'string'
+                  ? JSON.stringify(fieldDef.default).replace(/"/g, "'")
+                  : JSON.stringify(fieldDef.default)
+                fieldDictLines.push(`            'default': ${defaultStr}`)
+              }
+              const fieldDictStr = fieldDictLines.join(',\n')
+              return `        "${paramName}": FieldSchema({\n${fieldDictStr}\n        })${comma}`
+            } else {
+              // 默认格式
+              return `        "${paramName}": FieldSchema({\n            'type': 'any'\n        })${comma}`
+            }
           })
           .join('\n')
       : null
@@ -103,6 +132,7 @@ export const nodeGenerator = {
 ${description}
 """
 from stream_workflow.core import Node, ParameterSchema, register_node
+from stream_workflow.core.parameter import FieldSchema
 
 @register_node('${nodeId}')
 class ${className}(Node):
