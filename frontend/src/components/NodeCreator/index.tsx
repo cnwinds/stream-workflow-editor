@@ -329,9 +329,8 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
       setInputs(inputs.map(updateItem))
     } else if (type === 'output') {
       setOutputs(outputs.map(updateItem))
-    } else {
-      setConfigParams(configParams.map(updateItem))
     }
+    // 注意：config 类型不支持 schemaType 切换，配置参数直接就是字段列表
   }
 
   const handleAddInputSchemaField = (inputKey: string) => {
@@ -693,7 +692,7 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
       // 验证输入输出配置参数名称
       const inputNames = inputs.map((i) => i.name).filter((n) => n)
       const outputNames = outputs.map((o) => o.name).filter((n) => n)
-      const configNames = configParams.map((c) => c.name).filter((n) => n)
+      const configNames = configParams.map((c) => c.fieldName).filter((n) => n)
       
       if (inputNames.length !== new Set(inputNames).size) {
         message.error('输入名称不能重复')
@@ -748,7 +747,7 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
       // 验证输入输出配置参数名称
       const inputNames = inputs.map((i) => i.name).filter((n) => n)
       const outputNames = outputs.map((o) => o.name).filter((n) => n)
-      const configNames = configParams.map((c) => c.name).filter((n) => n)
+      const configNames = configParams.map((c) => c.fieldName).filter((n) => n)
       
       if (inputNames.length !== new Set(inputNames).size) {
         message.error('输入管理名称不能重复')
@@ -828,8 +827,8 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
         } else if (onlyParametersChanged) {
           // 只更新参数，使用新接口，保留其他代码
           await nodeApi.updateCustomNodeParameters(editingNodeId, {
-            inputs: inputsDict,
-            outputs: outputsDict,
+            inputs: inputsDict as any,
+            outputs: outputsDict as any,
           })
           
           // 更新所有使用该节点类型的实例
@@ -915,7 +914,7 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
             pythonCode: finalPythonCode,
           }
           
-          await nodeApi.updateCustomNodeFull(editingNodeId, request)
+          await nodeApi.updateCustomNodeFull(editingNodeId, request as any)
           
           // 更新所有使用该节点类型的实例
           const { edges: edgesBefore } = useWorkflowStore.getState()
@@ -968,7 +967,7 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
           pythonCode: finalPythonCode,
         }
         
-        await nodeApi.createCustomNode(request)
+        await nodeApi.createCustomNode(request as any)
         message.success('节点创建成功')
       }
 
@@ -1006,9 +1005,8 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
                   handleInputChange(item.key, 'simpleType', value)
                 } else if (type === 'output') {
                   handleOutputChange(item.key, 'simpleType', value)
-                } else {
-                  handleConfigParamChange(item.key, 'simpleType', value)
                 }
+                // 注意：config 类型不使用 renderSchemaConfig，所以这里不需要处理
               }}
               disabled={readOnly}
               style={{ width: '100%' }}
@@ -1312,7 +1310,7 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
                           <Select
                             size="small"
                             value={item.schemaType}
-                            onChange={(value) => handleToggleSchemaType(item.key, 'input')}
+                            onChange={() => handleToggleSchemaType(item.key, 'input')}
                             onClick={(e) => e.stopPropagation()}
                             style={{ width: 'auto', minWidth: 80, flexShrink: 0 }}
                           >
@@ -1413,7 +1411,7 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
                           <Select
                             size="small"
                             value={item.schemaType}
-                            onChange={(value) => handleToggleSchemaType(item.key, 'output')}
+                            onChange={() => handleToggleSchemaType(item.key, 'output')}
                             onClick={(e) => e.stopPropagation()}
                             style={{ width: 'auto', minWidth: 80, flexShrink: 0 }}
                           >
