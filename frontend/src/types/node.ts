@@ -65,9 +65,9 @@ export interface CreateNodeRequest {
   nodeId: string
   name: string
   description: string
-  category: string
+  category?: string
   executionMode: NodeExecutionMode
-  color: string
+  color?: string
   inputs: Record<string, ParameterSchema> // 改为字典结构，key是输入名称
   outputs: Record<string, ParameterSchema> // 改为字典结构，key是输出名称
   configParams?: Record<string, FieldSchemaDef> // 配置参数，使用 FieldSchema 格式

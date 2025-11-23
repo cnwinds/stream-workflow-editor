@@ -8,9 +8,9 @@ export const nodeGenerator = {
     nodeId: string
     name: string
     description: string
-    category: string
+    category?: string
     executionMode: string
-    color: string
+    color?: string
     inputs: Record<string, ParameterSchema>
     outputs: Record<string, ParameterSchema>
     configParams?: Record<string, FieldSchemaDef>
@@ -128,6 +128,18 @@ export const nodeGenerator = {
       })
       .join('\n')
 
+    // 生成元信息代码（只在有值时生成）
+    const metaInfoLines: string[] = []
+    metaInfoLines.push(`    NAME = "${name}"`)
+    if (category && category.trim()) {
+      metaInfoLines.push(`    CATEGORY = "${category}"`)
+    }
+    metaInfoLines.push(`    EXECUTION_MODE = '${executionMode}'`)
+    if (color && color.trim()) {
+      metaInfoLines.push(`    COLOR = '${color}'`)
+    }
+    const metaInfoCode = metaInfoLines.join('\n')
+
     const code = `"""
 ${description}
 """
@@ -139,10 +151,7 @@ class ${className}(Node):
     """${description}"""
     
     # 节点元信息
-    NAME = "${name}"
-    CATEGORY = "${category}"
-    EXECUTION_MODE = '${executionMode}'
-    COLOR = '${color}'
+${metaInfoCode}
     
     # 输入参数定义
     INPUT_PARAMS = {

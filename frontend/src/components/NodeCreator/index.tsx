@@ -715,9 +715,9 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
         nodeId: values.nodeId,
         name: values.name,
         description: values.description || "",
-        category: values.category,
+        category: values.category?.trim() || undefined,
         executionMode: values.executionMode,
-        color: values.color,
+        color: values.color?.trim() || undefined,
         inputs: inputsDict,
         outputs: outputsDict,
         configParams: configParamsDict,
@@ -770,9 +770,9 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
         // 检查哪些字段发生了变化
         const hasNameChange = originalData && originalData.name !== values.name
         const hasDescriptionChange = originalData && originalData.description !== (values.description || '')
-        const hasCategoryChange = originalData && originalData.category !== values.category
+        const hasCategoryChange = originalData && (originalData.category || '') !== (values.category || '')
         const hasExecutionModeChange = originalData && originalData.executionMode !== values.executionMode
-        const hasColorChange = originalData && originalData.color !== (values.color || '#1890ff')
+        const hasColorChange = originalData && (originalData.color || '') !== (values.color || '')
         // 规范化配置参数用于比较（对键进行排序以确保一致性）
         const normalizeConfigParams = (params: Record<string, any> | undefined): Record<string, any> => {
           if (!params) return {}
@@ -872,9 +872,9 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
                   nodeId: values.nodeId,
                   name: values.name,
                   description: values.description || "",
-                  category: values.category,
+                  category: values.category?.trim() || undefined,
                   executionMode: values.executionMode,
-                  color: values.color,
+                  color: values.color?.trim() || undefined,
                   inputs: inputsDict,
                   outputs: outputsDict,
                   configParams: configParamsDict,
@@ -891,9 +891,9 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
                 nodeId: values.nodeId,
                 name: values.name,
                 description: values.description || "",
-                category: values.category,
+                category: values.category?.trim() || undefined,
                 executionMode: values.executionMode,
-                color: values.color,
+                color: values.color?.trim() || undefined,
                 inputs: inputsDict,
                 outputs: outputsDict,
                 configParams: configParamsDict,
@@ -905,9 +905,9 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
             nodeId: values.nodeId,
             name: values.name,
             description: values.description || "",
-            category: values.category,
+            category: values.category?.trim() || undefined,
             executionMode: values.executionMode,
-            color: values.color,
+            color: values.color?.trim() || undefined,
             inputs: inputsDict,
             outputs: outputsDict,
             configParams: configParamsDict,
@@ -920,7 +920,7 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
           const { edges: edgesBefore } = useWorkflowStore.getState()
           updateNodeTypeInstances(editingNodeId, {
             name: values.name,
-            color: values.color,
+            color: values.color?.trim() || undefined,
             inputParams: inputsDict,
             outputParams: outputsDict,
             configParams: configParamsDict,
@@ -958,9 +958,9 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
           nodeId: values.nodeId,
           name: values.name,
           description: values.description || "",
-          category: values.category,
+          category: values.category?.trim() || undefined,
           executionMode: values.executionMode,
-          color: values.color,
+          color: values.color?.trim() || undefined,
           inputs: inputsDict,
           outputs: outputsDict,
           configParams: configParamsDict,
@@ -1240,7 +1240,7 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
                   />
                 </Form.Item>
 
-                <Form.Item name="category" label="分类" rules={readOnly ? [] : [{ required: true, message: '请输入分类' }]}>
+                <Form.Item name="category" label="分类">
                   <Input 
                     disabled={readOnly} 
                     placeholder="例如: 数据处理.文本 (支持点分隔符进行树状分类)"
@@ -1260,7 +1260,7 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
                   </Select>
                 </Form.Item>
 
-                <Form.Item name="color" label="节点颜色" rules={readOnly ? [] : [{ required: true, message: '请输入颜色' }]}>
+                <Form.Item name="color" label="节点颜色">
                   <Input type="color" disabled={readOnly} style={{ width: 100 }} />
                 </Form.Item>
               </>

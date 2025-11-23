@@ -112,9 +112,9 @@ export const nodeApi = {
     nodeId: string
     name: string
     description: string
-    category: string
+    category?: string
     executionMode: string
-    color: string
+    color?: string
     inputs: Record<string, { isStreaming: boolean; schema: Record<string, any> }>
     outputs: Record<string, { isStreaming: boolean; schema: Record<string, any> }>
     pythonCode?: string
@@ -146,9 +146,9 @@ export const nodeApi = {
     nodeId: string
     name: string
     description: string
-    category: string
+    category?: string
     executionMode: string
-    color: string
+    color?: string
     inputs: Record<string, { isStreaming: boolean; schema: Record<string, any> }>
     outputs: Record<string, { isStreaming: boolean; schema: Record<string, any> }>
     pythonCode?: string
