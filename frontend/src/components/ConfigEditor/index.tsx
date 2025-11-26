@@ -4,6 +4,7 @@ import { MoreOutlined, PlusOutlined, DeleteOutlined, HolderOutlined } from '@ant
 import Editor from '@monaco-editor/react'
 import { useThemeStore } from '@/stores/themeStore'
 import { FieldSchemaDef } from '@/types/node'
+import yaml from 'js-yaml'
 import './ConfigEditor.css'
 
 const { TextArea } = Input
@@ -264,7 +265,9 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
         try {
           config[item.key] = JSON.parse(item.value)
         } catch {
-          config[item.key] = item.value !== undefined && item.value !== null ? item.value : ''
+          // 如果不是 JSON，直接作为字符串保存
+          const valueStr = item.value !== undefined && item.value !== null ? String(item.value) : ''
+          config[item.key] = valueStr
         }
       }
     })
@@ -412,32 +415,54 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
   const handleOpenEditor = (index: number) => {
     const item = items[index]
     setEditingIndex(index)
-    setEditingContent(item.value)
-    // 尝试判断内容类型
-    // 如果内容看起来像 JSON，使用 JSON；否则默认使用 Text
-    try {
-      const parsed = JSON.parse(item.value)
-      // 如果解析成功且是对象或数组，使用 JSON
-      if (typeof parsed === 'object') {
-        setEditorLanguage('json')
-      } else {
+    
+    // 尝试解析 YAML 块标量格式（以 | 或 > 开头）
+    let contentToDisplay = item.value
+    const trimmed = String(item.value || '').trim()
+    
+    // 检查是否是 YAML 块标量格式
+    if (trimmed.startsWith('|') || trimmed.startsWith('>')) {
+      try {
+        // 解析 YAML 块标量，提取实际内容
+        const parsed = yaml.load(item.value)
+        if (typeof parsed === 'string') {
+          contentToDisplay = parsed
+          setEditorLanguage('yaml')
+        } else {
+          contentToDisplay = item.value
+          setEditorLanguage('yaml')
+        }
+      } catch {
+        contentToDisplay = item.value
         setEditorLanguage('text')
       }
-    } catch {
-      // 如果解析失败，检查是否包含 YAML 特征（如 : 和 - ）
-      const trimmed = item.value.trim()
-      if (trimmed.includes(':') || trimmed.startsWith('-') || trimmed.includes('---')) {
-        setEditorLanguage('yaml')
-      } else {
-        setEditorLanguage('text')
+    } else {
+      // 尝试判断内容类型
+      try {
+        const parsed = JSON.parse(item.value)
+        if (typeof parsed === 'object') {
+          setEditorLanguage('json')
+        } else {
+          setEditorLanguage('text')
+        }
+      } catch {
+        // 检查是否包含 YAML 特征
+        if (trimmed.includes(':') || trimmed.startsWith('-') || trimmed.includes('---')) {
+          setEditorLanguage('yaml')
+        } else {
+          setEditorLanguage('text')
+        }
       }
     }
+    
+    setEditingContent(contentToDisplay)
     setEditorModalVisible(true)
   }
 
   const handleSaveEditor = () => {
     if (editingIndex === null) return
     
+    // 直接保存编辑内容，YAML 块标量格式会在序列化时自动处理
     const newItems = [...items]
     if (editingIndex >= 0 && editingIndex < newItems.length) {
       newItems[editingIndex].value = editingContent

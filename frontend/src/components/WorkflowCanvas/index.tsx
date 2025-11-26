@@ -424,9 +424,20 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
     try {
       const customNodeInfo = await nodeApi.getCustomNode(nodeType)
       if (customNodeInfo) {
+        // 转换类型以匹配 API 期望的格式
+        const convertParams = (params: Record<string, ParameterSchema>) => {
+          const result: Record<string, { isStreaming: boolean; schema: Record<string, any> }> = {}
+          Object.entries(params).forEach(([key, param]) => {
+            result[key] = {
+              isStreaming: param.isStreaming,
+              schema: typeof param.schema === 'string' ? {} : (param.schema as Record<string, any>),
+            }
+          })
+          return result
+        }
         await nodeApi.updateCustomNodeParameters(nodeType, {
-          inputs: inputParams,
-          outputs: outputParams,
+          inputs: convertParams(inputParams),
+          outputs: convertParams(outputParams),
         })
       }
     } catch (error) {
@@ -480,7 +491,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
       ...targetInputParams,
       [sourceHandleId]: {
         isStreaming: sourceParam.isStreaming,
-        schema: { ...sourceParam.schema },
+        schema: typeof sourceParam.schema === 'string' ? {} : { ...(sourceParam.schema as Record<string, any>) },
       },
     }
 
@@ -549,7 +560,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
       ...targetOutputParams,
       [sourceHandleId]: {
         isStreaming: sourceParam.isStreaming,
-        schema: { ...sourceParam.schema },
+        schema: typeof sourceParam.schema === 'string' ? {} : { ...(sourceParam.schema as Record<string, any>) },
       },
     }
 

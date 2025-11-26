@@ -329,6 +329,8 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
       setInputs(inputs.map(updateItem))
     } else if (type === 'output') {
       setOutputs(outputs.map(updateItem))
+    } else {
+      // configParams 不支持 schemaType，跳过
     }
     // 注意：config 类型不支持 schemaType 切换，配置参数直接就是字段列表
   }
@@ -679,6 +681,20 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
     return result
   }
 
+  // 将 ParameterSchema 转换为 API 期望的格式
+  const convertParameterSchemaToApiFormat = (
+    params: Record<string, ParameterSchema>
+  ): Record<string, { isStreaming: boolean; schema: Record<string, any> }> => {
+    const result: Record<string, { isStreaming: boolean; schema: Record<string, any> }> = {}
+    Object.entries(params).forEach(([key, param]) => {
+      result[key] = {
+        isStreaming: param.isStreaming,
+        schema: typeof param.schema === 'string' ? {} : (param.schema as Record<string, any>),
+      }
+    })
+    return result
+  }
+
   // 将配置参数数组转换为字典格式（使用 FieldSchema 格式）
   // 返回一个字典，键是字段名，值是 FieldSchemaDef
   const convertConfigParamsToDict = (fields: SchemaFieldItem[]): Record<string, any> => {
@@ -827,8 +843,8 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
         } else if (onlyParametersChanged) {
           // 只更新参数，使用新接口，保留其他代码
           await nodeApi.updateCustomNodeParameters(editingNodeId, {
-            inputs: inputsDict as any,
-            outputs: outputsDict as any,
+            inputs: convertParameterSchemaToApiFormat(inputsDict),
+            outputs: convertParameterSchemaToApiFormat(outputsDict),
           })
           
           // 更新所有使用该节点类型的实例
@@ -914,7 +930,11 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
             pythonCode: finalPythonCode,
           }
           
-          await nodeApi.updateCustomNodeFull(editingNodeId, request as any)
+          await nodeApi.updateCustomNodeFull(editingNodeId, {
+            ...request,
+            inputs: convertParameterSchemaToApiFormat(request.inputs),
+            outputs: convertParameterSchemaToApiFormat(request.outputs),
+          } as any)
           
           // 更新所有使用该节点类型的实例
           const { edges: edgesBefore } = useWorkflowStore.getState()
@@ -967,7 +987,11 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
           pythonCode: finalPythonCode,
         }
         
-        await nodeApi.createCustomNode(request as any)
+        await nodeApi.createCustomNode({
+          ...request,
+          inputs: convertParameterSchemaToApiFormat(request.inputs),
+          outputs: convertParameterSchemaToApiFormat(request.outputs),
+        } as any)
         message.success('节点创建成功')
       }
 
@@ -1005,6 +1029,12 @@ const NodeCreatorModal: React.FC<NodeCreatorModalProps> = ({
                   handleInputChange(item.key, 'simpleType', value)
                 } else if (type === 'output') {
                   handleOutputChange(item.key, 'simpleType', value)
+                } else {
+                  // 找到对应的 configParams 索引
+                  const configIndex = configParams.findIndex(c => c.fieldName === item.key)
+                  if (configIndex !== -1) {
+                    handleConfigParamFieldChange(configIndex, 'type', value)
+                  }
                 }
                 // 注意：config 类型不使用 renderSchemaConfig，所以这里不需要处理
               }}

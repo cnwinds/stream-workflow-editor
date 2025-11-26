@@ -20,7 +20,7 @@ interface NodeConfigPanelProps {
 
 const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ nodeId, edgeId }) => {
   const { nodes, edges, updateNodeData, updateNodeId } = useWorkflowStore()
-  const { nodeTypes, customNodeDetails, getNodeDescription, isCustomNode: checkIsCustomNode, setCustomNodeDetails, setNodeTypes } = useNodeInfoStore()
+  const { getNodeDescription, isCustomNode: checkIsCustomNode, setCustomNodeDetails, setNodeTypes, nodeTypes: _nodeTypes, customNodeDetails: _customNodeDetails } = useNodeInfoStore()
   const { theme } = useThemeStore()
   const [form] = Form.useForm()
   const [yamlContent, setYamlContent] = useState('')

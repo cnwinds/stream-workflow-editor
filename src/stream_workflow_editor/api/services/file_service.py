@@ -10,6 +10,19 @@ from typing import List, Dict, Any
 import yaml
 
 
+def represent_multiline_str(dumper, data):
+    """自定义字符串表示器，对于多行字符串使用块标量格式（|）"""
+    if '\n' in data:
+        # 使用块标量格式
+        return dumper.represent_scalar('tag:yaml.org,2002:str', data, style='|')
+    # 单行字符串使用默认格式
+    return dumper.represent_scalar('tag:yaml.org,2002:str', data)
+
+
+# 注册自定义表示器
+yaml.add_representer(str, represent_multiline_str)
+
+
 def validate_filename(filename: str) -> bool:
     """
     验证文件名是否有效
@@ -171,6 +184,7 @@ def save_yaml_file(filename: str, content: Dict[str, Any], overwrite: bool = Fal
         file_path.parent.mkdir(parents=True, exist_ok=True)
         
         with open(file_path, 'w', encoding='utf-8') as f:
+            # 自定义表示器会自动将多行字符串转换为块标量格式
             yaml.dump(content, f, allow_unicode=True, default_flow_style=False, sort_keys=False)
         
         stat = file_path.stat()
