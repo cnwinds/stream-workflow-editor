@@ -11,16 +11,60 @@ import yaml
 
 
 def represent_multiline_str(dumper, data):
-    """自定义字符串表示器，对于多行字符串使用块标量格式（|）"""
-    if '\n' in data:
-        # 使用块标量格式
-        return dumper.represent_scalar('tag:yaml.org,2002:str', data, style='|')
+    """
+    自定义字符串表示器，对于多行字符串使用块标量格式（|）
+    
+    对于包含换行符的字符串（如代码、多行文本），自动使用 YAML 的 | 模式保存。
+    同时处理真正的换行符和转义的换行符字符串（\\n）。
+    
+    Args:
+        dumper: YAML Dumper 实例
+        data: 要序列化的数据
+    
+    Returns:
+        YAML 节点对象，使用块标量格式（|）表示多行字符串
+    """
+    if isinstance(data, str):
+        # 检查是否包含真正的换行符
+        has_real_newline = '\n' in data or '\r' in data
+        
+        # 检查是否包含转义的换行符字符串（\\n，即反斜杠加n）
+        # 这通常发生在从JSON或前端传来的字符串中包含字面的 \n 字符时
+        has_escaped_newline = '\\n' in data
+        
+        # 如果包含换行符（真正的或转义的），使用块标量格式
+        if has_real_newline or has_escaped_newline:
+            # 如果只包含转义的换行符而没有真正的换行符，需要转换
+            if has_escaped_newline and not has_real_newline:
+                # 将字面的 \\n 转换为真正的换行符 \n
+                # 注意：在Python字符串中，'\\n' 表示两个字符（反斜杠和n）
+                # 我们需要将其替换为一个字符（换行符）
+                processed_data = data.replace('\\n', '\n').replace('\\r', '\r').replace('\\t', '\t')
+                # 处理双反斜杠的情况：\\\\ -> \\（保留字面的反斜杠）
+                processed_data = processed_data.replace('\\\\', '\\')
+            else:
+                processed_data = data
+            
+            # 使用块标量格式（|），保留换行符和末尾换行
+            return dumper.represent_scalar('tag:yaml.org,2002:str', processed_data, style='|')
+    
     # 单行字符串使用默认格式
     return dumper.represent_scalar('tag:yaml.org,2002:str', data)
 
 
-# 注册自定义表示器
-yaml.add_representer(str, represent_multiline_str)
+class MultilineStrDumper(yaml.SafeDumper):
+    """
+    自定义 Dumper 类，继承自 SafeDumper
+    
+    支持多行字符串自动使用 YAML 块标量格式（|）保存，
+    确保代码和多行文本以可读的格式保存。
+    """
+    pass
+
+
+# 注册自定义表示器到自定义 Dumper
+# 这样在序列化字符串时会自动调用 represent_multiline_str 函数
+MultilineStrDumper.add_representer(str, represent_multiline_str)
 
 
 def validate_filename(filename: str) -> bool:
@@ -184,8 +228,18 @@ def save_yaml_file(filename: str, content: Dict[str, Any], overwrite: bool = Fal
         file_path.parent.mkdir(parents=True, exist_ok=True)
         
         with open(file_path, 'w', encoding='utf-8') as f:
-            # 自定义表示器会自动将多行字符串转换为块标量格式
-            yaml.dump(content, f, allow_unicode=True, default_flow_style=False, sort_keys=False)
+            # 使用自定义 Dumper，自动将多行字符串转换为块标量格式（|）
+            # 这样代码和多行文本会以可读的格式保存，而不是压缩成一行
+            yaml.dump(
+                content,
+                f,
+                Dumper=MultilineStrDumper,
+                allow_unicode=True,
+                default_flow_style=False,
+                sort_keys=False,
+                default_style=None,  # 不强制使用引号
+                width=4096,  # 设置较大的宽度，避免自动换行
+            )
         
         stat = file_path.stat()
         return {

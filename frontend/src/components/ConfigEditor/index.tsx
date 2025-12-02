@@ -236,10 +236,23 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
         const cleanedConfig: Record<string, any> = {}
         cleanedItems.forEach((item) => {
           if (item.key && item.key.trim()) {
-            try {
-              cleanedConfig[item.key] = JSON.parse(item.value)
-            } catch {
-              cleanedConfig[item.key] = item.value !== undefined && item.value !== null ? item.value : ''
+            const valueStr = item.value !== undefined && item.value !== null ? String(item.value) : ''
+            
+            // 如果值包含换行符，直接作为字符串保存
+            if (valueStr.includes('\n')) {
+              cleanedConfig[item.key] = valueStr
+            } else {
+              // 对于单行内容，尝试解析 JSON
+              try {
+                const parsed = JSON.parse(valueStr)
+                if (typeof parsed === 'string') {
+                  cleanedConfig[item.key] = valueStr
+                } else {
+                  cleanedConfig[item.key] = parsed
+                }
+              } catch {
+                cleanedConfig[item.key] = valueStr
+              }
             }
           }
         })
@@ -260,14 +273,25 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
     const config: Record<string, any> = {}
     newItems.forEach((item) => {
       if (item.key && item.key.trim()) {
-        // 尝试解析 JSON，如果失败则作为字符串
-        // 即使value是空字符串，也要保存key
-        try {
-          config[item.key] = JSON.parse(item.value)
-        } catch {
-          // 如果不是 JSON，直接作为字符串保存
-          const valueStr = item.value !== undefined && item.value !== null ? String(item.value) : ''
+        const valueStr = item.value !== undefined && item.value !== null ? String(item.value) : ''
+        
+        // 如果值包含换行符，直接作为字符串保存（确保后端 YAML 序列化器能识别为多行字符串）
+        if (valueStr.includes('\n')) {
           config[item.key] = valueStr
+        } else {
+          // 对于单行内容，尝试解析 JSON，如果失败则作为字符串
+          try {
+            const parsed = JSON.parse(valueStr)
+            // 如果解析结果是字符串，使用原始字符串（保持一致性）
+            if (typeof parsed === 'string') {
+              config[item.key] = valueStr
+            } else {
+              config[item.key] = parsed
+            }
+          } catch {
+            // 如果不是 JSON，直接作为字符串保存
+            config[item.key] = valueStr
+          }
         }
       }
     })
@@ -462,7 +486,8 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({
   const handleSaveEditor = () => {
     if (editingIndex === null) return
     
-    // 直接保存编辑内容，YAML 块标量格式会在序列化时自动处理
+    // 直接保存编辑内容（包含换行符的多行字符串）
+    // 后端 YAML 序列化器会自动将包含 \n 的字符串转换为 | 格式
     const newItems = [...items]
     if (editingIndex >= 0 && editingIndex < newItems.length) {
       newItems[editingIndex].value = editingContent
