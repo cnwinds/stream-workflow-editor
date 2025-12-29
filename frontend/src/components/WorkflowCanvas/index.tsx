@@ -827,9 +827,14 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(({
     try {
       await new Promise(resolve => setTimeout(resolve, 500))
 
+      const viewport = reactFlowInstance.current.getViewport()
+      const currentZoom = viewport.zoom || 1
+
+      const pixelRatio = Math.max(1.5, Math.min(5, 2 / currentZoom))
+
       const dataUrl = await toPng(viewportElement, {
         backgroundColor: theme.colors.canvasBackground,
-        pixelRatio: 2,
+        pixelRatio,
         cacheBust: true,
         style: {
           margin: '0',
