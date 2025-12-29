@@ -1,6 +1,6 @@
 import { Layout, ConfigProvider } from 'antd'
-import { useState, useEffect } from 'react'
-import WorkflowCanvas from './components/WorkflowCanvas'
+import { useState, useEffect, useRef } from 'react'
+import WorkflowCanvas, { WorkflowCanvasRef } from './components/WorkflowCanvas'
 import NodePalette from './components/NodePalette'
 import NodeConfigPanel from './components/NodeConfigPanel'
 import Toolbar from './components/Toolbar'
@@ -13,6 +13,13 @@ function App() {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null)
   const theme = useCurrentTheme()
+  const canvasRef = useRef<WorkflowCanvasRef>(null)
+
+  useEffect(() => {
+    if (canvasRef.current) {
+      window.dispatchEvent(new CustomEvent('canvasReady', { detail: { ref: canvasRef.current } }))
+    }
+  }, [])
 
   // 监听节点ID更新事件，同步更新选中状态
   useEffect(() => {
@@ -81,8 +88,9 @@ function App() {
             <NodePalette />
           </Sider>
           <Content style={{ position: 'relative', overflow: 'hidden', background: theme.colors.canvasBackground }}>
-            <WorkflowCanvas 
-              onNodeSelect={setSelectedNodeId} 
+            <WorkflowCanvas
+              ref={canvasRef}
+              onNodeSelect={setSelectedNodeId}
               selectedNodeId={selectedNodeId}
               onEdgeSelect={setSelectedEdgeId}
             />

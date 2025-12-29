@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useEffect, useMemo, createContext, useContext, useState } from 'react'
+import React, { useCallback, useRef, useEffect, useMemo, createContext, useContext, useState, useImperativeHandle, forwardRef } from 'react'
 import ReactFlow, {
   Background,
   Controls,
@@ -10,6 +10,7 @@ import ReactFlow, {
 } from 'reactflow'
 import 'reactflow/dist/style.css'
 import { message } from 'antd'
+import { toPng } from 'html-to-image'
 import { useWorkflowStore } from '@/stores/workflowStore'
 import { NodeType, ParameterSchema } from '@/types/node'
 import { WorkflowValidator } from '@/utils/validators'
@@ -50,11 +51,15 @@ interface WorkflowCanvasProps {
   onEdgeSelect?: (edgeId: string | null) => void // 连接线选中回调
 }
 
-const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
+export interface WorkflowCanvasRef {
+  exportAsImage: () => Promise<void>
+}
+
+const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(({
   onNodeSelect,
   selectedNodeId,
   onEdgeSelect,
-}) => {
+}, ref) => {
   const reactFlowInstance = useRef<ReactFlowInstance | null>(null)
   const [selectedEdgeId, setSelectedEdgeId] = React.useState<string | null>(null)
   const [hoveredEdgeId, setHoveredEdgeId] = React.useState<string | null>(null)
@@ -98,6 +103,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
     updateNodeData,
     shouldFitView,
     resetFitViewFlag,
+    currentFileName,
   } = useWorkflowStore()
 
   // 监听 edges 变化，如果选中的连接线被删除，清除选中状态
@@ -741,6 +747,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
     },
     style: {
       strokeWidth: 2,
+      stroke: theme.colors.borderSecondary,
     },
   }
 
@@ -805,6 +812,47 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
     onHandleMouseLeave: handleHandleMouseLeave,
   }), [handleHandleMouseEnter, handleHandleMouseLeave])
 
+  const exportAsImage = useCallback(async () => {
+    if (!reactFlowInstance.current) {
+      console.error('画布尚未初始化')
+      return
+    }
+
+    const viewportElement = document.querySelector('.react-flow__viewport') as HTMLElement
+    if (!viewportElement) {
+      console.error('未找到视口元素')
+      return
+    }
+
+    try {
+      await new Promise(resolve => setTimeout(resolve, 500))
+
+      const dataUrl = await toPng(viewportElement, {
+        backgroundColor: theme.colors.canvasBackground,
+        pixelRatio: 2,
+        cacheBust: true,
+        style: {
+          margin: '0',
+          padding: '0',
+        },
+      })
+
+      const a = document.createElement('a')
+      a.href = dataUrl
+      const fileName = currentFileName || 'workflow'
+      a.download = `${fileName}.png`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+    } catch (error) {
+      console.error('导出图片失败:', error)
+    }
+  }, [theme, currentFileName])
+
+  useImperativeHandle(ref, () => ({
+    exportAsImage,
+  }))
+
 
   return (
     <div style={{ width: '100%', height: '100%' }}>
@@ -827,7 +875,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
               // 如果连接无效，使用主题错误颜色
               style: {
                 ...edgeOptions.style,
-                stroke: isValid ? undefined : theme.colors.invalid, // 使用主题错误颜色
+                stroke: isValid ? edgeOptions.style.stroke : theme.colors.invalid, // 使用主题错误颜色
                 strokeWidth: isValid ? (isSelected ? 3 : (isHovered ? 2.5 : (isHandleHovered ? 2.5 : 2))) : 3, // 选中/高亮时稍微粗一点
               },
               // 添加数据标记，方便SmartEdge组件使用
@@ -905,7 +953,9 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
       </ReactFlowProvider>
     </div>
   )
-}
+})
+
+WorkflowCanvas.displayName = 'WorkflowCanvas'
 
 export default WorkflowCanvas
 

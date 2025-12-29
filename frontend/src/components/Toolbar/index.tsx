@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { Button, Space, Upload, message, Modal, Input, Select } from 'antd'
 import {
   SaveOutlined,
@@ -10,6 +10,7 @@ import {
   PlusOutlined,
   CopyOutlined,
   BgColorsOutlined,
+  PictureOutlined,
 } from '@ant-design/icons'
 import { useThemeStore, ThemeMode } from '@/stores/themeStore'
 import { useWorkflowStore } from '@/stores/workflowStore'
@@ -17,6 +18,7 @@ import { validationApi, fileApi } from '@/services/api'
 import { YamlService } from '@/services/yamlService'
 import NodeCreatorModal from '@/components/NodeCreator'
 import FileManager from '@/components/FileManager'
+import { WorkflowCanvasRef } from '@/components/WorkflowCanvas'
 import './Toolbar.css'
 
 const Toolbar: React.FC = () => {
@@ -27,6 +29,21 @@ const Toolbar: React.FC = () => {
   const [fileManagerVisible, setFileManagerVisible] = useState(false)
   const [saveAsVisible, setSaveAsVisible] = useState(false)
   const [saveAsFileName, setSaveAsFileName] = useState('')
+  const canvasRef = useRef<WorkflowCanvasRef | null>(null)
+
+  useEffect(() => {
+    const handleCanvasReady = (e: Event) => {
+      const customEvent = e as CustomEvent<{ ref: WorkflowCanvasRef }>
+      if (customEvent.detail?.ref) {
+        ;(canvasRef as any).current = customEvent.detail.ref
+      }
+    }
+
+    window.addEventListener('canvasReady', handleCanvasReady)
+    return () => {
+      window.removeEventListener('canvasReady', handleCanvasReady)
+    }
+  }, [])
 
   const themeOptions: { label: string; value: ThemeMode }[] = [
     { label: '明亮', value: 'light' },
@@ -136,6 +153,16 @@ const Toolbar: React.FC = () => {
     }
   }
 
+  const handleExportImage = async () => {
+    if (canvasRef.current) {
+      message.loading({ content: '正在导出图片...', key: 'exporting' })
+      await canvasRef.current.exportAsImage()
+      message.success({ content: '图片导出成功', key: 'exporting', duration: 2 })
+    } else {
+      message.warning('画布尚未准备好，请稍后再试')
+    }
+  }
+
   const handleImport = (file: File) => {
     const reader = new FileReader()
     reader.onload = async (e) => {
@@ -198,6 +225,9 @@ const Toolbar: React.FC = () => {
         </Upload>
         <Button icon={<DownloadOutlined />} onClick={handleExport}>
           导出
+        </Button>
+        <Button icon={<PictureOutlined />} onClick={handleExportImage}>
+          导出图片
         </Button>
         <Button icon={<CheckCircleOutlined />} onClick={handleValidate} loading={loading}>
           验证
