@@ -6,65 +6,18 @@ import { WorkflowConfig } from '@/types/workflow'
  */
 export class YamlService {
   /**
-   * 将工作流配置转换为 YAML 字符串
-   * 对于多行字符串，自动使用块标量格式（|）
+   * 将工作流配置转换为 YAML 字符串（仅用于预览、导出下载等）。
+   * 多行/块标量等保存格式由服务端统一处理，保存到文件时以服务端为准。
    */
   static stringify(config: WorkflowConfig): string {
     try {
-      // 使用 yaml.dump 序列化
-      let yamlString = yaml.dump(config, {
+      return yaml.dump(config, {
         indent: 2,
         lineWidth: -1,
         forceQuotes: false,
         sortKeys: false,
         noRefs: true,
       })
-
-      // 查找并替换所有多行字符串为块标量格式
-      // 匹配模式：键名: "包含\n的字符串" 或 键名: '包含\n的字符串'
-      const lines = yamlString.split('\n')
-      const result: string[] = []
-      let i = 0
-      
-      while (i < lines.length) {
-        const line = lines[i]
-        
-        // 匹配键值对：key: "value" 或 key: 'value'
-        // 使用非贪婪匹配，并处理转义字符
-        const doubleQuoteMatch = line.match(/^(\s+)([^:]+):\s*"((?:[^"\\]|\\.)*)"\s*$/)
-        const singleQuoteMatch = line.match(/^(\s+)([^:]+):\s*'((?:[^'\\]|\\.)*)'\s*$/)
-        const quotedMatch = doubleQuoteMatch || singleQuoteMatch
-        
-        if (quotedMatch) {
-          const [, indent, key, value] = quotedMatch
-          const quote = doubleQuoteMatch ? '"' : "'"
-          
-          // 检查值是否包含转义的换行符
-          const unescapedValue = value
-            .replace(/\\n/g, '\n')
-            .replace(/\\r/g, '\r')
-            .replace(/\\t/g, '\t')
-            .replace(quote === '"' ? /\\"/g : /\\'/g, quote)
-            .replace(/\\\\/g, '\\')
-          
-          if (unescapedValue.includes('\n')) {
-            // 转换为块标量格式
-            const valueLines = unescapedValue.split('\n')
-            const indentStr = ' '.repeat(indent.length + 2)
-            result.push(`${indent}${key}: |`)
-            valueLines.forEach((valLine) => {
-              result.push(`${indentStr}${valLine}`)
-            })
-            i++
-            continue
-          }
-        }
-        
-        result.push(line)
-        i++
-      }
-
-      return result.join('\n')
     } catch (error) {
       throw new Error(`YAML 序列化失败: ${error}`)
     }

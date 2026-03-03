@@ -10,12 +10,29 @@ from typing import List, Dict, Any
 import yaml
 
 
+def _normalize_multiline_for_block_style(data: str) -> str:
+    """
+    规范化多行字符串，提升 PyYAML 使用块标量(|)的稳定性。
+
+    说明：
+    - PyYAML 在检测到“行尾空格 + 换行”时，通常会退回双引号字符串样式。
+    - 这里仅对多行字符串做最小清理：统一换行符，并移除每行行尾空格/制表符。
+    """
+    # 统一换行符，避免 CRLF/CR 导致样式判断不一致
+    normalized = data.replace('\r\n', '\n').replace('\r', '\n')
+    # 移除每行结尾的空格/Tab，避免被 PyYAML 回退为双引号样式
+    normalized = re.sub(r'[ \t]+\n', '\n', normalized)
+    # 同时移除字符串末尾（无换行处）的空格/Tab
+    normalized = re.sub(r'[ \t]+$', '', normalized)
+    return normalized
+
+
 def represent_multiline_str(dumper, data):
     """
     自定义字符串表示器，对于多行字符串使用块标量格式（|）
     
     对于包含换行符的字符串（如代码、多行文本），自动使用 YAML 的 | 模式保存。
-    同时处理真正的换行符和转义的换行符字符串（\\n）。
+    仅对真实换行符生效，不对字面量 \\n 做隐式转换，避免破坏路径/正则等内容。
     
     Args:
         dumper: YAML Dumper 实例
@@ -25,30 +42,10 @@ def represent_multiline_str(dumper, data):
         YAML 节点对象，使用块标量格式（|）表示多行字符串
     """
     if isinstance(data, str):
-        # 检查是否包含真正的换行符
-        has_real_newline = '\n' in data or '\r' in data
-        
-        # 检查是否包含转义的换行符字符串（\\n，即反斜杠加n）
-        # 这通常发生在从JSON或前端传来的字符串中包含字面的 \n 字符时
-        has_escaped_newline = '\\n' in data
-        
-        # 如果包含换行符（真正的或转义的），使用块标量格式
-        if has_real_newline or has_escaped_newline:
-            # 如果只包含转义的换行符而没有真正的换行符，需要转换
-            if has_escaped_newline and not has_real_newline:
-                # 将字面的 \\n 转换为真正的换行符 \n
-                # 注意：在Python字符串中，'\\n' 表示两个字符（反斜杠和n）
-                # 我们需要将其替换为一个字符（换行符）
-                processed_data = data.replace('\\n', '\n').replace('\\r', '\r').replace('\\t', '\t')
-                # 处理双反斜杠的情况：\\\\ -> \\（保留字面的反斜杠）
-                processed_data = processed_data.replace('\\\\', '\\')
-            else:
-                processed_data = data
-            
-            # 使用块标量格式（|），保留换行符和末尾换行
-            return dumper.represent_scalar('tag:yaml.org,2002:str', processed_data, style='|')
-    
-    # 单行字符串使用默认格式
+        has_newline = '\n' in data or '\r' in data
+        if has_newline:
+            data = _normalize_multiline_for_block_style(data)
+            return dumper.represent_scalar('tag:yaml.org,2002:str', data, style='|')
     return dumper.represent_scalar('tag:yaml.org,2002:str', data)
 
 
@@ -229,7 +226,9 @@ def save_yaml_file(filename: str, content: Dict[str, Any], overwrite: bool = Fal
         
         with open(file_path, 'w', encoding='utf-8') as f:
             # 使用自定义 Dumper，自动将多行字符串转换为块标量格式（|）
-            # 这样代码和多行文本会以可读的格式保存，而不是压缩成一行
+            # 注意：保存格式仅由此服务端逻辑决定，前端不参与
+            if os.environ.get("STREAM_WORKFLOW_DEBUG_SAVE"):
+                print(f"[file_service] 保存 {filename}，使用 MultilineStrDumper（块标量 |）", flush=True)
             yaml.dump(
                 content,
                 f,
@@ -319,4 +318,3 @@ def file_exists(filename: str) -> bool:
     # 将路径中的正斜杠转换为系统路径分隔符
     file_path = get_yaml_directory() / filename.replace('/', os.sep)
     return file_path.exists()
-
